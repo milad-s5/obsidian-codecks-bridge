@@ -6,5 +6,9 @@
   "description": "Browse Codecks cards and import them into Project Manager as projects and tasks.",
   "author": "Milad Samimifar",
   "authorUrl": "https://github.com/milad-s5",
+  "fundingUrl": {
+    "Buy Me a Coffeete": "https://www.coffeete.ir/milads55",
+    "Buy Me a BitCoffee": "https://buymeabitcoffee.vercel.app/btc/bc1qwxju09p2wywqqq8udj2am8csvn6r4p4z6720q3"
+  },  
   "isDesktopOnly": false
 }
