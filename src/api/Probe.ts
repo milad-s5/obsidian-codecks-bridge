@@ -3,106 +3,158 @@ import { CodecksClient, CodecksError } from "./CodecksClient";
 
 /**
  * فاز کشف. مستندات Codecks نه مقادیر واقعیِ status رو می‌گه نه اسم دقیق رابطه‌ها،
- * پس به‌جای حدس‌زدن، چندتا کوئریِ نامزد رو می‌زنیم و پاسخِ خام رو می‌ریزیم توی یه
- * نوت تا از روی داده‌ی واقعی تصمیم بگیریم.
+ * و اولین تلاش برای گرفتن کارت‌ها با HTTP 500 برگشت. پس به‌جای یک کوئریِ بزرگ،
+ * چندتا کوئریِ کوچک و مستقل می‌زنیم:
+ *
+ *  - فیلدهای کارت یکی‌یکی اضافه می‌شن، تا اگه یکی‌شون نامعتبره خودش لو بره
+ *  - چند شکلِ مختلفِ گرفتنِ کارت امتحان می‌شه (از اکانت، از دک، با فیلتر)
  *
  * هیچ‌جای این فایل توکن نوشته نمی‌شه — فقط بدنه‌ی پاسخ.
  */
 interface ProbeStep {
   label: string;
   query: unknown;
+  /** برای مرحله‌هایی که به یک id از مرحله‌ی قبل نیاز دارن */
+  needsDeckId?: boolean;
 }
 
-const STEPS: ProbeStep[] = [
-  {
-    label: "account",
-    query: { _root: [{ account: ["name"] }] },
-  },
-  {
-    label: "projects",
-    query: { _root: [{ account: [{ projects: ["name"] }] }] },
-  },
-  {
-    label: "decks",
-    query: { _root: [{ account: [{ decks: ["title"] }] }] },
-  },
-  {
-    label: "cards (sample of 20)",
-    query: {
-      _root: [
-        {
-          account: [
-            {
-              'cards({"$limit":20})': [
-                "title",
-                "status",
-                "effort",
-                "priority",
-                "accountSeq",
-                "createdAt",
-              ],
-            },
-          ],
-        },
-      ],
-    },
-  },
+const CARD_FIELD_LADDER = [
+  ["title"],
+  ["title", "status"],
+  ["title", "status", "content"],
+  ["title", "status", "effort"],
+  ["title", "status", "priority"],
+  ["title", "status", "accountSeq"],
+  ["title", "status", "createdAt"],
+  ["title", "status", "dueDate"],
+  ["title", "status", "deckId"],
+  ["title", "status", "assigneeId"],
 ];
+
+function baseSteps(): ProbeStep[] {
+  const steps: ProbeStep[] = [
+    { label: "account", query: { _root: [{ account: ["name"] }] } },
+    { label: "projects", query: { _root: [{ account: [{ projects: ["name"] }] }] } },
+    {
+      label: "decks with projectId",
+      query: { _root: [{ account: [{ decks: ["title", "projectId"] }] }] },
+    },
+    {
+      label: "projects → decks (relation direction)",
+      query: { _root: [{ account: [{ projects: ["name", { decks: ["title"] }] }] }] },
+    },
+  ];
+
+  // نردبانِ فیلدهای کارت — هر پله یک فیلد بیشتر
+  for (const fields of CARD_FIELD_LADDER) {
+    steps.push({
+      label: `cards fields: ${fields.join(", ")}`,
+      query: { _root: [{ account: [{ cards: fields }] }] },
+    });
+  }
+
+  // شکل‌های مختلفِ محدودکردن
+  steps.push(
+    {
+      label: 'cards with $limit — cards({"$limit":5})',
+      query: { _root: [{ account: [{ 'cards({"$limit":5})': ["title", "status"] }] }] },
+    },
+    {
+      label: 'cards with filter — cards({"status":"done","$limit":5})',
+      query: {
+        _root: [{ account: [{ 'cards({"status":"done","$limit":5})': ["title", "status"] }] }],
+      },
+    },
+    {
+      label: "cards via decks",
+      query: { _root: [{ account: [{ decks: ["title", { cards: ["title", "status"] }] }] }] },
+    }
+  );
+
+  return steps;
+}
 
 export interface ProbeResult {
   notePath: string;
   statuses: string[];
-  failures: number;
+  ok: number;
+  failed: number;
 }
 
 export class Probe {
   constructor(private app: App, private client: CodecksClient) {}
 
   async run(): Promise<ProbeResult> {
-    const chunks: string[] = [
+    const out: string[] = [
       "# Codecks API probe",
       "",
       `Run at ${new Date().toISOString()}.`,
       "",
-      "Raw responses below — used to pin down the real `status` values and relation",
-      "names before the importer is written. Safe to delete afterwards.",
+      "Each step is an independent query. Card fields are added one at a time so an",
+      "invalid field shows up as the step where things start failing.",
       "",
     ];
 
     const statuses = new Set<string>();
-    let failures = 0;
+    const summary: string[] = [];
+    let ok = 0;
+    let failed = 0;
 
-    for (const step of STEPS) {
-      chunks.push(`## ${step.label}`, "");
-      chunks.push("Query:", "", "```json", JSON.stringify(step.query, null, 2), "```", "");
+    for (const step of baseSteps()) {
       try {
         const body = await this.client.query(step.query);
         for (const s of collectStatuses(body)) statuses.add(s);
-        chunks.push("Response:", "", "```json", truncate(JSON.stringify(body, null, 2)), "```", "");
+        ok++;
+        summary.push(`- ✅ ${step.label}`);
+        out.push(
+          `## ✅ ${step.label}`,
+          "",
+          "```json",
+          JSON.stringify(step.query),
+          "```",
+          "",
+          "```json",
+          truncate(JSON.stringify(body, null, 2)),
+          "```",
+          ""
+        );
       } catch (err) {
-        failures++;
+        failed++;
         const msg = err instanceof CodecksError ? `${err.kind}: ${err.message}` : String(err);
-        chunks.push("Failed:", "", "```", msg, "```", "");
-        // شکستِ احراز هویت روی همه‌ی مرحله‌ها تکرار می‌شه — زودتر تمومش کن
-        if (err instanceof CodecksError && (err.kind === "auth" || err.kind === "no-token" || err.kind === "no-subdomain")) {
-          chunks.push("_Stopped early: the remaining steps would fail the same way._", "");
+        summary.push(`- ❌ ${step.label} — ${msg}`);
+        out.push(`## ❌ ${step.label}`, "", "```json", JSON.stringify(step.query), "```", "", "```", msg, "```", "");
+
+        if (
+          err instanceof CodecksError &&
+          (err.kind === "auth" || err.kind === "no-token" || err.kind === "no-subdomain")
+        ) {
+          out.push("_Stopped early: every remaining step would fail the same way._", "");
           break;
         }
       }
     }
 
-    if (statuses.size) {
-      chunks.push("## Distinct card statuses seen", "", ...[...statuses].sort().map((s) => `- \`${s}\``), "");
-    }
+    const header = [
+      "## Summary",
+      "",
+      ...summary,
+      "",
+      statuses.size
+        ? `**Card statuses seen:** ${[...statuses].sort().map((s) => `\`${s}\``).join(", ")}`
+        : "**No card statuses seen yet.**",
+      "",
+      "---",
+      "",
+    ];
+    out.splice(6, 0, ...header);
 
     const notePath = normalizePath("Codecks API probe.md");
-    await this.app.vault.adapter.write(notePath, chunks.join("\n"));
+    await this.app.vault.adapter.write(notePath, out.join("\n"));
 
-    return { notePath, statuses: [...statuses].sort(), failures };
+    return { notePath, statuses: [...statuses].sort(), ok, failed };
   }
 }
 
-/** هر جای پاسخ که کلیدِ status با مقدار رشته‌ای باشه رو جمع می‌کنه */
 function collectStatuses(node: unknown, depth = 0): string[] {
   if (depth > 8 || node === null || typeof node !== "object") return [];
   const out: string[] = [];
@@ -117,7 +169,7 @@ function collectStatuses(node: unknown, depth = 0): string[] {
   return out;
 }
 
-const MAX_CHARS = 20000;
+const MAX_CHARS = 4000;
 
 function truncate(text: string): string {
   return text.length <= MAX_CHARS

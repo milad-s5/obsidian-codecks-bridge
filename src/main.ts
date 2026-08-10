@@ -67,8 +67,7 @@ export default class CodecksBridgePlugin extends Plugin {
         ? ` Statuses seen: ${result.statuses.join(", ")}.`
         : "";
       new Notice(
-        `Probe written to "${result.notePath}".${statusPart}` +
-          (result.failures ? ` ${result.failures} step(s) failed — see the note.` : ""),
+        `Probe written to "${result.notePath}" — ${result.ok} ok, ${result.failed} failed.${statusPart}`,
         10000
       );
     } catch (err) {

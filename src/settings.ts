@@ -44,8 +44,11 @@ export class CodecksBridgeSettingTab extends PluginSettingTab {
   }
 
   /**
-   * توکن هیچ‌وقت به DOM برنمی‌گرده. اگه ذخیره شده باشه فقط می‌گیم ذخیره شده و دو
-   * دکمه‌ی جایگزینی و پاک‌کردن می‌دیم.
+   * توکن هیچ‌وقت به DOM برنمی‌گرده — فیلد همیشه خالی شروع می‌شه و بعد از ذخیره
+   * هم خالی می‌شه.
+   *
+   * ذخیره با دکمه انجام می‌شه، نه با Enter: روی کیبورد گوشی زدنِ Enter یا اصلاً
+   * ممکن نیست یا فقط فیلد رو می‌بنده.
    */
   private renderTokenSetting(containerEl: HTMLElement): void {
     const setting = new Setting(containerEl)
@@ -60,17 +63,43 @@ export class CodecksBridgeSettingTab extends PluginSettingTab {
         })
       );
 
+    const status = setting.descEl.createEl("div", { text: "Checking…" });
+
+    let field: { getValue(): string; setValue(v: string): unknown } | null = null;
+
+    setting.addText((text) => {
+      field = text;
+      text.setPlaceholder("paste token here");
+      text.inputEl.type = "password";
+      text.inputEl.autocapitalize = "off";
+      text.inputEl.autocomplete = "off";
+      text.inputEl.spellcheck = false;
+      // روی گوشی Enter معمولاً در دسترس نیست، ولی روی دسکتاپ راحته
+      text.inputEl.addEventListener("keydown", (e: KeyboardEvent) => {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        void this.saveToken(text.getValue(), text);
+      });
+    });
+
+    setting.addButton((btn) =>
+      btn
+        .setButtonText("Save")
+        .setCta()
+        .onClick(() => {
+          if (field) void this.saveToken(field.getValue(), field);
+        })
+    );
+
     void this.plugin.tokens.has().then((has) => {
+      status.setText(
+        has
+          ? "A token is saved. It is never displayed again — saving here replaces it."
+          : "No token saved yet."
+      );
+      status.className = has ? "mod-success" : "mod-warning";
+
       if (has) {
-        setting.descEl.createEl("div", {
-          text: "A token is saved. It is not displayed again.",
-          cls: "mod-success",
-        });
-        setting.addButton((btn) =>
-          btn.setButtonText("Replace").onClick(() => {
-            this.promptForToken();
-          })
-        );
         setting.addButton((btn) =>
           btn
             .setButtonText("Clear")
@@ -81,36 +110,21 @@ export class CodecksBridgeSettingTab extends PluginSettingTab {
               this.display();
             })
         );
-      } else {
-        setting.addText((text) => {
-          text.setPlaceholder("paste token, then press Enter");
-          text.inputEl.type = "password";
-          text.inputEl.autocapitalize = "off";
-          text.inputEl.spellcheck = false;
-          text.inputEl.addEventListener("keydown", async (e: KeyboardEvent) => {
-            if (e.key !== "Enter") return;
-            e.preventDefault();
-            await this.saveToken(text.getValue());
-            text.setValue("");
-          });
-        });
       }
     });
   }
 
-  private promptForToken(): void {
-    const input = window.prompt("Paste the new Codecks token. It will not be shown again.");
-    if (input === null) return;
-    void this.saveToken(input);
-  }
-
-  private async saveToken(raw: string): Promise<void> {
+  private async saveToken(
+    raw: string,
+    field?: { setValue(v: string): unknown }
+  ): Promise<void> {
     const value = raw.trim();
     if (!value) {
-      new Notice("Nothing to save");
+      new Notice("Paste a token first");
       return;
     }
     await this.plugin.tokens.write(value);
+    field?.setValue("");
     new Notice("Codecks token saved");
     this.display();
   }
