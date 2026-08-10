@@ -81,7 +81,11 @@ export class Importer {
           continue;
         }
 
-        const projectName = card.projectName || "Codecks";
+        // پروژه‌ی Project Manager از روی *دک* ساخته می‌شود، نه از روی پروژه‌ی
+        // Codecks. در عمل دک همان واحد کاری است (Arbitrage)، و پروژه‌ی Codecks
+        // یک سطح بالاتر و کلی‌تر است (peach) — ساختن پروژه‌ای به اسم peach همه‌ی
+        // تسک‌ها را در یک سطل می‌ریخت.
+        const projectName = card.deckName || card.projectName || "Codecks";
         let slug = projectSlugs.get(projectName);
         if (!slug) {
           const project = await this.api.ensureProject(workspaceId, {
@@ -125,6 +129,8 @@ export class Importer {
     const extra: Record<string, string | number> = { [CODECKS_ID_KEY]: card.id };
     if (card.accountSeq !== null) extra.codecks_seq = card.accountSeq;
     if (card.deckName) extra.codecks_deck = card.deckName;
+    // پروژه‌ی Codecks خودش پروژه‌ی PM نمی‌شود، ولی دانستنش برای ردیابی می‌ارزد
+    if (card.projectName) extra.codecks_project = card.projectName;
     if (card.effort !== null) extra.codecks_effort = card.effort;
     if (card.assigneeName) extra.codecks_assignee = card.assigneeName;
     const url = cardUrl(this.settings.subdomain, card.accountSeq);

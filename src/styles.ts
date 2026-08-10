@@ -28,6 +28,10 @@ export const STYLES = `
 }
 .cdx-search { min-width: 160px; flex: 1 1 160px; }
 
+.cdx-ws { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.cdx-ws-label { font-size: 11px; color: var(--text-faint); }
+.cdx-warn { font-size: 11.5px; color: var(--color-orange, var(--text-muted)); }
+
 .cdx-toggle {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: 12px; color: var(--text-muted); cursor: pointer; white-space: nowrap;

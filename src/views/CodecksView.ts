@@ -213,6 +213,8 @@ export class CodecksView extends ItemView {
     const refresh = bar.createEl("button", { cls: "cdx-btn", text: "Refresh" });
     refresh.addEventListener("click", () => void this.fetch());
 
+    this.renderWorkspacePicker(bar);
+
     const projectSelect = bar.createEl("select", { cls: "cdx-select" });
     projectSelect.createEl("option", { value: "", text: "All projects" });
     for (const p of this.projects) {
@@ -263,6 +265,43 @@ export class CodecksView extends ItemView {
     });
     importBtn.disabled = this.selected.size === 0;
     importBtn.addEventListener("click", () => void this.runImport());
+  }
+
+  /**
+   * انتخابِ workspaceِ مقصد، همین‌جا کنارِ دکمه‌ی Import — قبلاً فقط در تنظیمات
+   * بود و از توی نما معلوم نبود ایمپورت کجا می‌رود.
+   */
+  private renderWorkspacePicker(bar: HTMLElement): void {
+    const workspaces = this.plugin.pmWorkspaces();
+    if (!workspaces.length) {
+      bar.createSpan({ cls: "cdx-warn", text: "Project Manager not found" });
+      return;
+    }
+
+    const wrap = bar.createEl("label", { cls: "cdx-ws" });
+    wrap.createSpan({ cls: "cdx-ws-label", text: "into" });
+    const select = wrap.createEl("select", { cls: "cdx-select" });
+
+    // اگر چیزی انتخاب نشده، اولی را بگیر تا Import هیچ‌وقت بی‌مقصد نماند
+    let current = this.plugin.settings.targetWorkspaceId;
+    if (!workspaces.some((w) => w.id === current)) {
+      current = workspaces[0].id;
+      this.plugin.settings.targetWorkspaceId = current;
+      void this.plugin.saveSettings();
+    }
+
+    for (const ws of workspaces) {
+      const opt = select.createEl("option", { value: ws.id, text: ws.name });
+      if (ws.id === current) opt.selected = true;
+    }
+
+    select.addEventListener("change", () => {
+      this.plugin.settings.targetWorkspaceId = select.value;
+      void this.plugin.saveSettings();
+      // «قبلاً وارد شده» به workspace بستگی دارد و باید دوباره حساب شود
+      this.refreshImportedMarks();
+      this.render();
+    });
   }
 
   private renderToggle(
