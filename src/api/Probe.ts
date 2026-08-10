@@ -20,51 +20,43 @@ interface ProbeStep {
   collect?: string[];
 }
 
-const STEPS: ProbeStep[] = [
-  // ── اسپیس ────────────────────────────────────────────────────────────
-  { label: "account.spaces", query: { _root: [{ account: [{ spaces: ["name"] }] }] } },
-  { label: "deck.spaceId", query: { _root: [{ account: [{ decks: ["title", "spaceId"] }] }] } },
-  {
-    label: "deck.space as a relation",
-    query: { _root: [{ account: [{ decks: ["title", { space: ["name"] }] }] }] },
-  },
-  {
-    label: "project.spaces",
-    query: { _root: [{ account: [{ projects: ["name", { spaces: ["name"] }] }] }] },
-  },
+/** فیلدهایی که ممکن است آدرسِ کارت از رویشان ساخته شود */
+const URL_FIELD_CANDIDATES = ["slug", "shortId", "hashId", "cardHash", "seq", "url", "link", "key"];
 
-  // ── حذف / بایگانی ────────────────────────────────────────────────────
-  {
-    label: "card.deletedAt",
-    query: { _root: [{ account: [{ cards: ["title", "deletedAt"] }] }] },
-    collect: ["deletedAt"],
-  },
-  {
-    label: "card.archivedAt",
-    query: { _root: [{ account: [{ cards: ["title", "archivedAt"] }] }] },
-    collect: ["archivedAt"],
-  },
-  {
-    label: "card.isArchived",
-    query: { _root: [{ account: [{ cards: ["title", "isArchived"] }] }] },
-    collect: ["isArchived"],
-  },
-  {
-    label: "card.visibility — which values actually appear",
-    query: { _root: [{ account: [{ cards: ["title", "visibility"] }] }] },
-    collect: ["visibility"],
-  },
-  {
-    label: "card.status — full distribution",
-    query: { _root: [{ account: [{ cards: ["title", "status"] }] }] },
-    collect: ["status"],
-  },
-  {
-    label: "deck.isArchived (are whole decks archivable?)",
-    query: { _root: [{ account: [{ decks: ["title", "isArchived"] }] }] },
-    collect: ["isArchived"],
-  },
-];
+const STEPS: ProbeStep[] = (() => {
+  const steps: ProbeStep[] = [
+    // ── اسپیس: هست، ولی نامش از کجا می‌آید؟ ───────────────────────────
+    {
+      label: "deck.spaceId — how many distinct spaces are there?",
+      query: { _root: [{ account: [{ decks: ["title", "spaceId"] }] }] },
+      collect: ["spaceId"],
+    },
+    {
+      label: "space entity by id — space(1)",
+      query: { "space(1)": ["name"] },
+    },
+    {
+      label: "account.spaces with id instead of name",
+      query: { _root: [{ account: [{ spaces: ["id"] }] }] },
+    },
+    {
+      label: "deck.space_id (snake, like project_id)",
+      query: { _root: [{ account: [{ decks: ["title", "space_id"] }] }] },
+      collect: ["space_id"],
+    },
+  ];
+
+  // ── آدرسِ کارت: هر نامزد جدا، تا هرکدام که هست خودش را نشان دهد ──────
+  for (const field of URL_FIELD_CANDIDATES) {
+    steps.push({
+      label: `card.${field}`,
+      query: { _root: [{ account: [{ cards: ["title", field] }] }] },
+      collect: [field],
+    });
+  }
+
+  return steps;
+})();
 
 export interface ProbeResult {
   notePath: string;
@@ -125,8 +117,9 @@ export class Probe {
       "",
       `Run at ${new Date().toISOString()}.`,
       "",
-      "Looking for two things: how spaces relate to decks, and what marks a card",
-      "as deleted or archived.",
+      "Looking for two things: a field the card URL can be built from, and whether",
+      "a space name is reachable at all (spaceId exists on decks but is a bare",
+      "integer, and every route to a space entity has 500'd so far).",
       "",
       "## Summary",
       "",

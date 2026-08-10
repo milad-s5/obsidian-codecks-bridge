@@ -92,8 +92,10 @@ export const STYLES = `
 }
 .cdx-tag-ok { color: var(--color-green); border-color: var(--color-green); }
 
-.cdx-link { flex-shrink: 0; color: var(--text-faint); text-decoration: none; padding: 0 2px; }
-.cdx-link:hover { color: var(--text-accent); }
+.cdx-seq {
+  flex-shrink: 0; font-size: 10.5px; color: var(--text-faint);
+  font-variant-numeric: tabular-nums; padding-top: 2px;
+}
 
 .cdx-empty, .cdx-error { padding: 26px 18px; text-align: center; font-size: 13px; }
 .cdx-empty { color: var(--text-faint); }

@@ -9,16 +9,17 @@ import { Importer } from "../import/Importer";
 export const CODECKS_VIEW_TYPE = "codecks-bridge-view";
 
 /**
- * وضعیت‌هایی که یعنی کار تمام شده.
+ * کارتی که دیگر کاری روش نیست: یا وضعیتش تمام‌شده است، یا از تخته برداشته شده.
  *
- * probe فقط done و not_started را روی این حساب دید، ولی چرخه‌ی Codecks حالت‌های
- * دیگری هم دارد، پس به‌جای برابریِ ساده با "done" چند حالت پوشش داده می‌شود.
- * حذف‌شده‌ها اینجا نیستند — هنوز نمی‌دانم API با چه فیلدی نشانشان می‌دهد.
+ * probe نشان داد حذف و آرشیو در فیلد visibility می‌نشینند (default / archived /
+ * deleted) و نه در deletedAt یا isArchived — آن‌ها اصلاً وجود ندارند و ۵۰۰
+ * می‌دهند. روی این حساب ۷۶ کارت از ۲۰۸ تا archived یا deleted بودند.
  */
-const CLOSED_STATUSES = new Set(["done", "archived", "deleted", "cancelled", "canceled"]);
+const CLOSED_STATUSES = new Set(["done", "cancelled", "canceled"]);
 
 function isClosed(card: CodecksCard): boolean {
-  return CLOSED_STATUSES.has((card.status ?? "").trim().toLowerCase());
+  if (CLOSED_STATUSES.has((card.status ?? "").trim().toLowerCase())) return true;
+  return (card.visibility ?? "default") !== "default";
 }
 
 export class CodecksView extends ItemView {
@@ -40,6 +41,7 @@ export class CodecksView extends ItemView {
 
   constructor(leaf: WorkspaceLeaf, private plugin: CodecksBridgePlugin) {
     super(leaf);
+    this.filterProject = plugin.settings.lastProjectId ?? "";
   }
 
   getViewType(): string { return CODECKS_VIEW_TYPE; }
@@ -89,6 +91,8 @@ export class CodecksView extends ItemView {
   private visibleCards(): CodecksCard[] {
     const text = this.filterText.trim().toLowerCase();
     return this.cards.filter((c) => {
+      // کارتی که به هیچ پروژه‌ای وصل نیست چیزی نیست که ساخته باشی — نشانش نده
+      if (!c.projectId) return false;
       if (this.hideDocs && c.isDoc) return false;
       if (this.hideClosed && isClosed(c)) return false;
       if (this.hideImported && this.imported.has(c.id)) return false;
@@ -217,6 +221,9 @@ export class CodecksView extends ItemView {
     }
     projectSelect.addEventListener("change", () => {
       this.filterProject = projectSelect.value;
+      // انتخاب باید دفعه‌ی بعد هم سر جایش باشد
+      this.plugin.settings.lastProjectId = this.filterProject;
+      void this.plugin.saveSettings();
       this.render();
     });
 
@@ -303,12 +310,11 @@ export class CodecksView extends ItemView {
     if (card.assigneeName) bits.push(card.assigneeName);
     meta.setText(bits.join(" · "));
 
-    const url = cardUrl(this.plugin.settings.subdomain, card.accountSeq);
-    if (url) {
-      const link = row.createEl("a", { cls: "cdx-link", text: "↗", href: url });
-      link.setAttr("target", "_blank");
-      link.setAttr("rel", "noopener");
-      link.setAttr("aria-label", "Open in Codecks");
+    // لینکِ «باز کن در Codecks» فعلاً نیست: آدرسی که از accountSeq می‌ساختم
+    // به کارت نمی‌رسید و فرمت درستش هنوز معلوم نیست. لینکِ خرابْ بدتر از
+    // نبودنِ لینک است؛ probe بعدی دنبال فیلدِ درست می‌گردد.
+    if (card.accountSeq !== null) {
+      row.createSpan({ cls: "cdx-seq", text: `#${card.accountSeq}` });
     }
   }
 

@@ -3,6 +3,8 @@ export interface CodecksBridgeSettings {
   subdomain: string;
   /** workspace مقصد در Project Manager (شناسه، نه نام) */
   targetWorkspaceId: string;
+  /** آخرین پروژه‌ی انتخاب‌شده در نما — بین بازوبسته‌شدن‌ها می‌ماند */
+  lastProjectId: string;
   /** status کارت در Codecks → status در Project Manager */
   statusMap: Record<string, string>;
   /** status پیش‌فرض وقتی نگاشتی وجود نداره */
@@ -14,6 +16,7 @@ export interface CodecksBridgeSettings {
 export const DEFAULT_SETTINGS: CodecksBridgeSettings = {
   subdomain: "",
   targetWorkspaceId: "",
+  lastProjectId: "",
   // مقادیرِ چپ از probe روی حساب واقعی اومدن. not_started چیزی بود که حدس اولیه‌ام
   // (unassigned/assigned) رو رد کرد.
   statusMap: {
@@ -39,6 +42,8 @@ export interface CodecksCard {
   dueDate: string;
   /** کارتِ داکیومنت، نه تسک */
   isDoc: boolean;
+  /** default | archived | deleted — نشانگرِ واقعیِ حذف، طبق probe */
+  visibility: string;
   deckId: string;
   deckName: string;
   projectId: string;

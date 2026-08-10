@@ -85,6 +85,7 @@ export function parseCards(res: unknown, ctx: ParseCardsContext): CodecksCard[] 
       priority: str(pick(row, "priority")),
       dueDate: str(pick(row, "dueDate")),
       isDoc: pick(row, "isDoc") === true,
+      visibility: str(pick(row, "visibility")) || "default",
       deckId,
       deckName: deck?.title ?? "",
       projectId: deck?.projectId ?? "",

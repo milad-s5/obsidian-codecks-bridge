@@ -32,6 +32,9 @@ export const CARDS_QUERY = {
             "dueDate",
             "deckId",
             "isDoc",
+            // default | archived | deleted — تنها چیزی که حذف را نشان می‌دهد.
+            // deletedAt و archivedAt و isArchived هر سه ۵۰۰ می‌دهند.
+            "visibility",
             { assignee: ["name"] },
           ],
         },
