@@ -53,7 +53,14 @@ export default class CodecksBridgePlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const stored = ((await this.loadData()) ?? {}) as Partial<CodecksBridgeSettings>;
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, stored);
+
+    // statusMap باید کلیدبه‌کلید ادغام بشه، نه یک‌جا جایگزین. اولین نسخه با
+    // حدسِ غلط (unassigned/assigned) ذخیره شده بود؛ با جایگزینیِ کامل، مقدارِ
+    // واقعی یعنی not_started هیچ‌وقت به تنظیماتِ موجود اضافه نمی‌شد و بی‌صدا
+    // به defaultStatus می‌افتاد.
+    this.settings.statusMap = { ...DEFAULT_SETTINGS.statusMap, ...(stored.statusMap ?? {}) };
   }
 
   async saveSettings(): Promise<void> {
