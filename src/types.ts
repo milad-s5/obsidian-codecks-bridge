@@ -7,21 +7,24 @@ export interface CodecksBridgeSettings {
   statusMap: Record<string, string>;
   /** status پیش‌فرض وقتی نگاشتی وجود نداره */
   defaultStatus: string;
+  /** کارت‌های isDoc داکیومنتن نه تسک — پیش‌فرض نادیده گرفته می‌شن */
+  skipDocs: boolean;
 }
 
 export const DEFAULT_SETTINGS: CodecksBridgeSettings = {
   subdomain: "",
   targetWorkspaceId: "",
-  // مقادیر واقعیِ status بعد از probe نهایی می‌شن — این‌ها حدسِ اولیه‌ان
+  // مقادیرِ چپ از probe روی حساب واقعی اومدن. not_started چیزی بود که حدس اولیه‌ام
+  // (unassigned/assigned) رو رد کرد.
   statusMap: {
-    done: "done",
+    not_started: "todo",
     started: "active",
-    review: "active",
     blocked: "active",
-    assigned: "todo",
-    unassigned: "todo",
+    review: "active",
+    done: "done",
   },
   defaultStatus: "todo",
+  skipDocs: true,
 };
 
 export interface CodecksCard {
@@ -34,6 +37,8 @@ export interface CodecksCard {
   effort: number | null;
   priority: string;
   dueDate: string;
+  /** کارتِ داکیومنت، نه تسک */
+  isDoc: boolean;
   deckId: string;
   deckName: string;
   projectId: string;

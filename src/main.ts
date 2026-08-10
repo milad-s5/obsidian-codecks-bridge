@@ -1,38 +1,55 @@
-import { Notice, Plugin } from "obsidian";
+import { Notice, Plugin, WorkspaceLeaf } from "obsidian";
 import { CodecksBridgeSettings, DEFAULT_SETTINGS } from "./types";
 import { CodecksBridgeSettingTab } from "./settings";
 import { TokenStore } from "./auth/TokenStore";
 import { CodecksClient, CodecksError } from "./api/CodecksClient";
 import { Probe } from "./api/Probe";
+import { CodecksView, CODECKS_VIEW_TYPE } from "./views/CodecksView";
+import { Importer, PmApi } from "./import/Importer";
+import { STYLES } from "./styles";
 
 const PM_PLUGIN_ID = "project-manager-with-time-tracking";
 
 /** حداقل نسخه‌ی APIای که این پلاگین باهاش کار می‌کنه */
 const REQUIRED_PM_API = 1;
 
-interface ProjectManagerApi {
-  version: number;
-  listWorkspaces(): { id: string; name: string }[];
-}
-
 export default class CodecksBridgePlugin extends Plugin {
   settings: CodecksBridgeSettings;
   tokens: TokenStore;
   client: CodecksClient;
+  private styleEl: HTMLStyleElement | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
 
-    this.tokens = new TokenStore(this.app, this.manifest.dir ?? `.obsidian/plugins/${this.manifest.id}`);
+    this.tokens = new TokenStore(
+      this.app,
+      this.manifest.dir ?? `.obsidian/plugins/${this.manifest.id}`
+    );
     this.client = new CodecksClient(this.app, this.tokens, () => this.settings.subdomain);
 
+    this.loadStyles();
+    this.registerView(CODECKS_VIEW_TYPE, (leaf: WorkspaceLeaf) => new CodecksView(leaf, this));
     this.addSettingTab(new CodecksBridgeSettingTab(this.app, this));
+
+    this.addRibbonIcon("layers", "Open Codecks", () => void this.openView());
+
+    this.addCommand({
+      id: "open",
+      name: "Open Codecks",
+      callback: () => void this.openView(),
+    });
 
     this.addCommand({
       id: "probe",
       name: "Test connection and probe the API",
       callback: () => void this.runProbe(),
     });
+  }
+
+  onunload(): void {
+    this.styleEl?.remove();
+    this.styleEl = null;
   }
 
   async loadSettings(): Promise<void> {
@@ -43,12 +60,35 @@ export default class CodecksBridgePlugin extends Plugin {
     await this.saveData(this.settings);
   }
 
-  /** APIِ Project Manager — اگه نباشه یا قدیمی باشه null */
-  pmApi(): ProjectManagerApi | null {
-    const plugins = (this.app as any).plugins?.plugins;
-    const api = plugins?.[PM_PLUGIN_ID]?.api as ProjectManagerApi | undefined;
+  private loadStyles(): void {
+    const el = document.createElement("style");
+    el.id = "codecks-bridge-styles";
+    el.textContent = STYLES;
+    document.head.appendChild(el);
+    this.styleEl = el;
+  }
+
+  async openView(): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(CODECKS_VIEW_TYPE);
+    if (existing.length) {
+      this.app.workspace.revealLeaf(existing[0]);
+      return;
+    }
+    const leaf = this.app.workspace.getLeaf(false);
+    await leaf.setViewState({ type: CODECKS_VIEW_TYPE, active: true });
+    this.app.workspace.revealLeaf(leaf);
+  }
+
+  /** APIِ Project Manager — اگه نباشه یا قدیمی‌تر از چیزی که لازمه باشه، null */
+  pmApi(): PmApi | null {
+    const api = (this.app as any).plugins?.plugins?.[PM_PLUGIN_ID]?.api as PmApi | undefined;
     if (!api || typeof api.version !== "number" || api.version < REQUIRED_PM_API) return null;
     return api;
+  }
+
+  importer(): Importer | null {
+    const api = this.pmApi();
+    return api ? new Importer(api, this.settings) : null;
   }
 
   pmWorkspaces(): { id: string; name: string }[] {
