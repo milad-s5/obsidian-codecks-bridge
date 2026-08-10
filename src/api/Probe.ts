@@ -2,95 +2,67 @@ import { App, normalizePath } from "obsidian";
 import { CodecksClient, CodecksError } from "./CodecksClient";
 
 /**
- * فاز کشف.
+ * فاز کشف — دور چهارم.
  *
- * دورِ اول: کارت‌ها ۵۰۰ می‌دادن. دورِ دوم با اضافه‌کردنِ فیلدها یکی‌یکی معلوم شد
- * مقصر assigneeId است، و اینکه آرگومان‌های $limit/فیلتر روی account.cards هم رد
- * می‌شن. این دور دنبالِ سه چیز باقی‌مانده‌ست: راهِ درستِ گرفتنِ assignee، راهی
- * برای محدودکردن نتایج، و اینکه کارتِ «داکیومنت» از تسک جدا می‌شه یا نه.
+ * دورهای قبل شکلِ کارت و دک و پروژه را روشن کردند. دو چیز باقی مانده که
+ * حدس‌زدنشان تا حالا همیشه غلط از آب درآمده:
  *
- * خروجی دیگه JSONِ خام نیست — قبلاً حجمِ آرایه‌ی idها باعث می‌شد خودِ موجودیت‌ها
- * قیچی بشن. حالا برای هر نوع، تعداد و یک نمونه چاپ می‌شه.
+ *  ۱. «اسپیس» — دک زیر اسپیس است؟ اسم فیلد و رابطه‌اش چیست؟
+ *  ۲. کارتِ حذف‌شده با چه چیزی مشخص می‌شود؟ deletedAt؟ archived؟ visibility؟
+ *
+ * برای هر فیلدِ مشکوک، مقادیرِ متمایزی که واقعاً برگشته گزارش می‌شود — چون
+ * دانستنِ اینکه فیلد وجود دارد کافی نیست، باید بدانیم چه مقداری می‌گیرد.
  */
 interface ProbeStep {
   label: string;
   query: unknown;
+  /** فیلدهایی که مقادیر متمایزشان را می‌خواهیم بشماریم */
+  collect?: string[];
 }
 
 const STEPS: ProbeStep[] = [
+  // ── اسپیس ────────────────────────────────────────────────────────────
+  { label: "account.spaces", query: { _root: [{ account: [{ spaces: ["name"] }] }] } },
+  { label: "deck.spaceId", query: { _root: [{ account: [{ decks: ["title", "spaceId"] }] }] } },
   {
-    label: "all working card fields together",
-    query: {
-      _root: [
-        {
-          account: [
-            {
-              cards: [
-                "title",
-                "status",
-                "content",
-                "effort",
-                "priority",
-                "accountSeq",
-                "createdAt",
-                "dueDate",
-                "deckId",
-              ],
-            },
-          ],
-        },
-      ],
-    },
+    label: "deck.space as a relation",
+    query: { _root: [{ account: [{ decks: ["title", { space: ["name"] }] }] }] },
   },
   {
-    label: "card.isDoc (are doc cards separable from tasks?)",
-    query: { _root: [{ account: [{ cards: ["title", "isDoc"] }] }] },
+    label: "project.spaces",
+    query: { _root: [{ account: [{ projects: ["name", { spaces: ["name"] }] }] }] },
+  },
+
+  // ── حذف / بایگانی ────────────────────────────────────────────────────
+  {
+    label: "card.deletedAt",
+    query: { _root: [{ account: [{ cards: ["title", "deletedAt"] }] }] },
+    collect: ["deletedAt"],
   },
   {
-    label: "card.visibility",
+    label: "card.archivedAt",
+    query: { _root: [{ account: [{ cards: ["title", "archivedAt"] }] }] },
+    collect: ["archivedAt"],
+  },
+  {
+    label: "card.isArchived",
+    query: { _root: [{ account: [{ cards: ["title", "isArchived"] }] }] },
+    collect: ["isArchived"],
+  },
+  {
+    label: "card.visibility — which values actually appear",
     query: { _root: [{ account: [{ cards: ["title", "visibility"] }] }] },
+    collect: ["visibility"],
   },
   {
-    label: "assignee as a nested relation",
-    query: { _root: [{ account: [{ cards: ["title", { assignee: ["name"] }] }] }] },
+    label: "card.status — full distribution",
+    query: { _root: [{ account: [{ cards: ["title", "status"] }] }] },
+    collect: ["status"],
   },
   {
-    label: "assignee as a plain field",
-    query: { _root: [{ account: [{ cards: ["title", "assignee"] }] }] },
-  },
-  {
-    label: "deck as a nested relation on card",
-    query: { _root: [{ account: [{ cards: ["title", { deck: ["title", "projectId"] }] }] }] },
-  },
-  {
-    label: "milestone as a nested relation",
-    query: { _root: [{ account: [{ cards: ["title", { milestone: ["name"] }] }] }] },
-  },
-  {
-    label: 'order only — cards({"$order":"createdAt"})',
-    query: { _root: [{ account: [{ 'cards({"$order":"createdAt"})': ["title"] }] }] },
-  },
-  {
-    label: 'filter only — cards({"status":"done"})',
-    query: { _root: [{ account: [{ 'cards({"status":"done"})': ["title", "status"] }] }] },
-  },
-  {
-    label: 'limit on the deck relation — decks{ cards({"$limit":3}) }',
-    query: {
-      _root: [{ account: [{ decks: ["title", { 'cards({"$limit":3})': ["title", "status"] }] }] }],
-    },
-  },
-  {
-    label: "cards via decks with full fields",
-    query: {
-      _root: [
-        {
-          account: [
-            { decks: ["title", "projectId", { cards: ["title", "status", "effort", "accountSeq"] }] },
-          ],
-        },
-      ],
-    },
+    label: "deck.isArchived (are whole decks archivable?)",
+    query: { _root: [{ account: [{ decks: ["title", "isArchived"] }] }] },
+    collect: ["isArchived"],
   },
 ];
 
@@ -114,25 +86,30 @@ export class Probe {
     for (const step of STEPS) {
       try {
         const res = await this.client.query(step.query);
-        for (const s of collectStatuses(res)) statuses.add(s);
+        for (const s of distinct(res, "status").keys()) statuses.add(String(s));
         ok++;
         summary.push(`- ✅ ${step.label}`);
-        body.push(
-          `## ✅ ${step.label}`,
-          "",
-          "```json",
-          JSON.stringify(step.query),
-          "```",
-          "",
-          ...describe(res),
-          ""
-        );
+        body.push(`## ✅ ${step.label}`, "", "```json", JSON.stringify(step.query), "```", "");
+
+        for (const field of step.collect ?? []) {
+          const counts = distinct(res, field);
+          body.push(
+            counts.size
+              ? `\`${field}\` values: ` +
+                  [...counts.entries()]
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([v, n]) => `\`${v}\` ×${n}`)
+                    .join(", ")
+              : `\`${field}\`: never present in the response`,
+            ""
+          );
+        }
+        body.push(...describe(res), "");
       } catch (err) {
         failed++;
         const msg = err instanceof CodecksError ? `${err.kind}: ${err.message}` : String(err);
         summary.push(`- ❌ ${step.label} — ${msg}`);
         body.push(`## ❌ ${step.label}`, "", "```json", JSON.stringify(step.query), "```", "", "```", msg, "```", "");
-
         if (
           err instanceof CodecksError &&
           (err.kind === "auth" || err.kind === "no-token" || err.kind === "no-subdomain")
@@ -148,13 +125,12 @@ export class Probe {
       "",
       `Run at ${new Date().toISOString()}.`,
       "",
+      "Looking for two things: how spaces relate to decks, and what marks a card",
+      "as deleted or archived.",
+      "",
       "## Summary",
       "",
       ...summary,
-      "",
-      statuses.size
-        ? `**Card statuses seen:** ${[...statuses].sort().map((s) => `\`${s}\``).join(", ")}`
-        : "**No card statuses seen.**",
       "",
       "---",
       "",
@@ -168,49 +144,40 @@ export class Probe {
   }
 }
 
-/**
- * به‌جای چاپِ کلِ پاسخ، برای هر نوع موجودیت تعداد و یک نمونه رو نشون می‌ده.
- * آرایه‌ی idها می‌تونه صدها عضو داشته باشه و خودِ موجودیت‌ها رو از دیدرس ببره.
- */
+/** مقادیر متمایزِ یک فیلد در کل پاسخ، با تعداد تکرار */
+function distinct(node: unknown, field: string, acc = new Map<string, number>(), depth = 0): Map<string, number> {
+  if (depth > 8 || node === null || typeof node !== "object") return acc;
+  if (Array.isArray(node)) {
+    for (const item of node) distinct(item, field, acc, depth + 1);
+    return acc;
+  }
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    if (key === field) {
+      const label = value === null ? "null" : typeof value === "object" ? "<object>" : String(value);
+      acc.set(label, (acc.get(label) ?? 0) + 1);
+    } else {
+      distinct(value, field, acc, depth + 1);
+    }
+  }
+  return acc;
+}
+
 function describe(res: unknown): string[] {
   if (res === null || typeof res !== "object") return ["```", String(res), "```"];
-
   const out: string[] = [];
   for (const [type, value] of Object.entries(res as Record<string, unknown>)) {
-    if (type === "_root") {
-      out.push(`\`_root\`: \`${JSON.stringify(value)}\``, "");
-      continue;
-    }
+    if (type === "_root" || type === "account") continue;
     if (value === null || typeof value !== "object") continue;
-
     const entries = Object.entries(value as Record<string, unknown>);
     out.push(`**${type}** — ${entries.length} item(s)`, "");
     const [, sample] = entries[0] ?? [];
     if (sample !== undefined) {
-      out.push("First one:", "", "```json", trim(JSON.stringify(sample, null, 2), 1200), "```", "");
-    }
-    if (entries.length > 1) {
-      const [, second] = entries[1];
-      out.push("Second one:", "", "```json", trim(JSON.stringify(second, null, 2), 1200), "```", "");
+      out.push("```json", trim(JSON.stringify(sample, null, 2), 700), "```", "");
     }
   }
   return out;
 }
 
 function trim(text: string, max: number): string {
-  return text.length <= max ? text : `${text.slice(0, max)}\n… ${text.length - max} more characters`;
-}
-
-function collectStatuses(node: unknown, depth = 0): string[] {
-  if (depth > 8 || node === null || typeof node !== "object") return [];
-  const out: string[] = [];
-  if (Array.isArray(node)) {
-    for (const item of node) out.push(...collectStatuses(item, depth + 1));
-    return out;
-  }
-  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
-    if (key === "status" && typeof value === "string" && value) out.push(value);
-    else out.push(...collectStatuses(value, depth + 1));
-  }
-  return out;
+  return text.length <= max ? text : `${text.slice(0, max)}\n… ${text.length - max} more`;
 }

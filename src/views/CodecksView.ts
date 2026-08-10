@@ -8,6 +8,19 @@ import { Importer } from "../import/Importer";
 
 export const CODECKS_VIEW_TYPE = "codecks-bridge-view";
 
+/**
+ * وضعیت‌هایی که یعنی کار تمام شده.
+ *
+ * probe فقط done و not_started را روی این حساب دید، ولی چرخه‌ی Codecks حالت‌های
+ * دیگری هم دارد، پس به‌جای برابریِ ساده با "done" چند حالت پوشش داده می‌شود.
+ * حذف‌شده‌ها اینجا نیستند — هنوز نمی‌دانم API با چه فیلدی نشانشان می‌دهد.
+ */
+const CLOSED_STATUSES = new Set(["done", "archived", "deleted", "cancelled", "canceled"]);
+
+function isClosed(card: CodecksCard): boolean {
+  return CLOSED_STATUSES.has((card.status ?? "").trim().toLowerCase());
+}
+
 export class CodecksView extends ItemView {
   private cards: CodecksCard[] = [];
   private decks: CodecksDeck[] = [];
@@ -19,8 +32,11 @@ export class CodecksView extends ItemView {
   private filterProject = "";
   private hideDocs = true;
   private hideImported = true;
+  private hideClosed = true;
   private loading = false;
   private loadError = "";
+  /** گروه‌هایی که کاربر بسته‌شون کرده — پیش‌فرض همه بازن */
+  private collapsed = new Set<string>();
 
   constructor(leaf: WorkspaceLeaf, private plugin: CodecksBridgePlugin) {
     super(leaf);
@@ -74,11 +90,39 @@ export class CodecksView extends ItemView {
     const text = this.filterText.trim().toLowerCase();
     return this.cards.filter((c) => {
       if (this.hideDocs && c.isDoc) return false;
+      if (this.hideClosed && isClosed(c)) return false;
       if (this.hideImported && this.imported.has(c.id)) return false;
       if (this.filterProject && c.projectId !== this.filterProject) return false;
       if (text && !`${displayTitle(c)} ${c.deckName}`.toLowerCase().includes(text)) return false;
       return true;
     });
+  }
+
+  /**
+   * کارت‌ها را پروژه ← دک گروه می‌کند. مرتب‌سازی بر اساس اسم تا ترتیب بین
+   * رفرش‌ها ثابت بماند.
+   */
+  private grouped(cards: CodecksCard[]): { project: string; decks: { deck: string; cards: CodecksCard[] }[] }[] {
+    const byProject = new Map<string, Map<string, CodecksCard[]>>();
+    for (const card of cards) {
+      const project = card.projectName || "No project";
+      const deck = card.deckName || "No deck";
+      let decks = byProject.get(project);
+      if (!decks) byProject.set(project, (decks = new Map()));
+      const list = decks.get(deck);
+      if (list) list.push(card);
+      else decks.set(deck, [card]);
+    }
+
+    const byName = (a: string, b: string) => a.localeCompare(b);
+    return [...byProject.entries()]
+      .sort((a, b) => byName(a[0], b[0]))
+      .map(([project, decks]) => ({
+        project,
+        decks: [...decks.entries()]
+          .sort((a, b) => byName(a[0], b[0]))
+          .map(([deck, cards]) => ({ deck, cards })),
+      }));
   }
 
   // ── رندر ──────────────────────────────────────────────────────────────
@@ -118,7 +162,45 @@ export class CodecksView extends ItemView {
       list.createDiv({ cls: "cdx-empty", text: "No cards match these filters." });
       return;
     }
-    for (const card of visible) this.renderCard(list, card);
+
+    for (const group of this.grouped(visible)) {
+      const total = group.decks.reduce((n, d) => n + d.cards.length, 0);
+      const isCollapsed = this.collapsed.has(group.project);
+
+      const header = list.createDiv({ cls: "cdx-group-head" });
+      header.createSpan({ cls: "cdx-caret", text: isCollapsed ? "▸" : "▾" });
+      header.createSpan({ cls: "cdx-group-name", text: group.project });
+      header.createSpan({ cls: "cdx-group-count", text: String(total) });
+      header.addEventListener("click", () => {
+        if (isCollapsed) this.collapsed.delete(group.project);
+        else this.collapsed.add(group.project);
+        this.render();
+      });
+
+      const pick = header.createEl("button", { cls: "cdx-mini", text: "select" });
+      pick.addEventListener("click", (e) => {
+        e.stopPropagation();
+        for (const d of group.decks) for (const c of d.cards) this.selected.add(c.id);
+        this.render();
+      });
+
+      if (isCollapsed) continue;
+
+      for (const { deck, cards } of group.decks) {
+        const deckHead = list.createDiv({ cls: "cdx-deck-head" });
+        deckHead.createSpan({ cls: "cdx-deck-name", text: deck });
+        deckHead.createSpan({ cls: "cdx-group-count", text: String(cards.length) });
+
+        const deckPick = deckHead.createEl("button", { cls: "cdx-mini", text: "select" });
+        deckPick.addEventListener("click", (e) => {
+          e.stopPropagation();
+          for (const c of cards) this.selected.add(c.id);
+          this.render();
+        });
+
+        for (const card of cards) this.renderCard(list, card);
+      }
+    }
   }
 
   private renderToolbar(root: HTMLElement): void {
@@ -150,6 +232,7 @@ export class CodecksView extends ItemView {
     });
 
     this.renderToggle(bar, "Hide docs", this.hideDocs, (v) => { this.hideDocs = v; });
+    this.renderToggle(bar, "Hide done", this.hideClosed, (v) => { this.hideClosed = v; });
     this.renderToggle(bar, "Hide imported", this.hideImported, (v) => { this.hideImported = v; });
 
     const spacer = bar.createDiv({ cls: "cdx-spacer" });

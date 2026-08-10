@@ -40,9 +40,40 @@ export const STYLES = `
 
 .cdx-list { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 10px 20px; }
 
+.cdx-group-head {
+  display: flex; align-items: center; gap: 7px;
+  padding: 9px 6px 5px; cursor: pointer; user-select: none;
+  position: sticky; top: 0; z-index: 2;
+  background: var(--background-primary);
+}
+.cdx-group-head:hover .cdx-group-name { color: var(--text-accent); }
+.cdx-caret { font-size: 10px; color: var(--text-faint); width: 10px; flex-shrink: 0; }
+.cdx-group-name { font-size: 12.5px; font-weight: 700; color: var(--text-normal); }
+
+.cdx-deck-head {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 6px 4px 22px;
+}
+.cdx-deck-name {
+  font-size: 11.5px; font-weight: 600; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cdx-group-count {
+  font-size: 10px; color: var(--text-faint);
+  background: var(--background-modifier-border);
+  border-radius: 999px; padding: 0 6px; flex-shrink: 0;
+}
+.cdx-mini {
+  margin-inline-start: auto; flex-shrink: 0;
+  font-size: 10px; padding: 1px 7px; border-radius: 5px; cursor: pointer;
+  background: transparent; color: var(--text-faint);
+  border: 1px solid var(--background-modifier-border);
+}
+.cdx-mini:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+
 .cdx-card {
   display: flex; align-items: flex-start; gap: 10px;
-  padding: 9px 10px; margin-bottom: 6px; border-radius: 8px;
+  padding: 9px 10px; margin: 0 0 5px 22px; border-radius: 8px;
   background: var(--background-secondary);
   border: 1px solid var(--background-modifier-border);
 }
