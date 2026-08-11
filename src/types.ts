@@ -1,15 +1,15 @@
 export interface CodecksBridgeSettings {
-  /** زیردامنه‌ی سازمان در Codecks — هدرِ X-Account */
+  /** Codecks organisation subdomain — the X-Account header */
   subdomain: string;
-  /** workspace مقصد در Project Manager (شناسه، نه نام) */
+  /** Target Project Manager workspace (id, not name) */
   targetWorkspaceId: string;
-  /** آخرین پروژه‌ی انتخاب‌شده در نما — بین بازوبسته‌شدن‌ها می‌ماند */
+  /** Last project picked in the view — survives closing and reopening */
   lastProjectId: string;
-  /** status کارت در Codecks → status در Project Manager */
+  /** Codecks card status → Project Manager status */
   statusMap: Record<string, string>;
-  /** status پیش‌فرض وقتی نگاشتی وجود نداره */
+  /** Fallback status when nothing maps */
   defaultStatus: string;
-  /** کارت‌های isDoc داکیومنتن نه تسک — پیش‌فرض نادیده گرفته می‌شن */
+  /** isDoc cards are documents rather than tasks — skipped by default */
   skipDocs: boolean;
 }
 
@@ -17,8 +17,8 @@ export const DEFAULT_SETTINGS: CodecksBridgeSettings = {
   subdomain: "",
   targetWorkspaceId: "",
   lastProjectId: "",
-  // مقادیرِ چپ از probe روی حساب واقعی اومدن. not_started چیزی بود که حدس اولیه‌ام
-  // (unassigned/assigned) رو رد کرد.
+  // These keys came from probing the real account. not_started is what disproved
+  // my first guess of unassigned/assigned.
   statusMap: {
     not_started: "todo",
     started: "active",
@@ -32,7 +32,7 @@ export const DEFAULT_SETTINGS: CodecksBridgeSettings = {
 
 export interface CodecksCard {
   id: string;
-  /** شماره‌ی قابل‌خواندنِ کارت (همونی که توی URL می‌بینی) */
+  /** Human-readable card number, the one shown in the app */
   accountSeq: number | null;
   title: string;
   content: string;
@@ -40,9 +40,9 @@ export interface CodecksCard {
   effort: number | null;
   priority: string;
   dueDate: string;
-  /** کارتِ داکیومنت، نه تسک */
+  /** A document card, not a task */
   isDoc: boolean;
-  /** default | archived | deleted — نشانگرِ واقعیِ حذف، طبق probe */
+  /** default | archived | deleted — the real deletion marker, per the probe */
   visibility: string;
   deckId: string;
   deckName: string;

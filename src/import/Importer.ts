@@ -2,7 +2,7 @@ import { CodecksCard, CodecksBridgeSettings } from "../types";
 import { displayTitle } from "../api/normalize";
 import { cardUrl } from "../api/queries";
 
-/** همون سطحی که Project Manager بیرون می‌ده — اینجا فقط چیزی که لازمه */
+/** The slice of Project Manager's API this needs */
 export interface PmApi {
   version: number;
   listWorkspaces(): { id: string; name: string }[];
@@ -24,7 +24,7 @@ export interface PmApi {
   findTaskBy(workspaceId: string, key: string, value: string): { slug: string; path: string } | null;
 }
 
-/** کلیدی که با اون تشخیص می‌دیم این کارت قبلاً وارد شده */
+/** Frontmatter key that tells us a card has already been imported */
 export const CODECKS_ID_KEY = "codecks_id";
 
 export interface ImportOutcome {
@@ -49,7 +49,7 @@ export function mapStatus(settings: CodecksBridgeSettings, codecksStatus: string
 export class Importer {
   constructor(private api: PmApi, private settings: CodecksBridgeSettings) {}
 
-  /** آیا این کارت از قبل به‌شکل تسک وجود داره؟ */
+  /** Does this card already exist as a task? */
   alreadyImported(workspaceId: string, card: CodecksCard): boolean {
     try {
       return this.api.findTaskBy(workspaceId, CODECKS_ID_KEY, card.id) !== null;
@@ -59,10 +59,10 @@ export class Importer {
   }
 
   /**
-   * کارت‌های انتخاب‌شده رو وارد می‌کنه.
+   * Imports the selected cards.
    *
-   * شکستِ یک کارت نباید بقیه رو زمین بزنه — دسته‌ای که وسطش رها بشه بدترین حالته،
-   * چون معلوم نیست چی رفته چی نرفته. هر کارت جدا گزارش می‌شه.
+   * One bad card must not take the rest down: a batch abandoned halfway is the
+   * worst outcome, since nothing says what landed. Each card reports separately.
    */
   async importCards(
     workspaceId: string,
@@ -70,7 +70,7 @@ export class Importer {
     onProgress?: (done: number, total: number) => void
   ): Promise<ImportSummary> {
     const outcomes: ImportOutcome[] = [];
-    // پروژه‌هایی که توی همین اجرا ساخته/پیدا شدن، تا برای هر کارت دوباره نگردیم
+    // Projects created or found during this run, so we do not look them up per card
     const projectSlugs = new Map<string, string>();
 
     let done = 0;
@@ -81,10 +81,10 @@ export class Importer {
           continue;
         }
 
-        // پروژه‌ی Project Manager از روی *دک* ساخته می‌شود، نه از روی پروژه‌ی
-        // Codecks. در عمل دک همان واحد کاری است (Arbitrage)، و پروژه‌ی Codecks
-        // یک سطح بالاتر و کلی‌تر است (peach) — ساختن پروژه‌ای به اسم peach همه‌ی
-        // تسک‌ها را در یک سطل می‌ریخت.
+        // The Project Manager project is named after the *deck*, not the Codecks
+        // project. In practice the deck is the unit of work (Arbitrage), while the
+        // Codecks project sits a level above it (peach) — naming the project peach
+        // tipped every task into a single bucket.
         const projectName = card.deckName || card.projectName || "Codecks";
         let slug = projectSlugs.get(projectName);
         if (!slug) {
@@ -129,7 +129,7 @@ export class Importer {
     const extra: Record<string, string | number> = { [CODECKS_ID_KEY]: card.id };
     if (card.accountSeq !== null) extra.codecks_seq = card.accountSeq;
     if (card.deckName) extra.codecks_deck = card.deckName;
-    // پروژه‌ی Codecks خودش پروژه‌ی PM نمی‌شود، ولی دانستنش برای ردیابی می‌ارزد
+    // The Codecks project does not become the PM project, but it is worth recording
     if (card.projectName) extra.codecks_project = card.projectName;
     if (card.effort !== null) extra.codecks_effort = card.effort;
     if (card.assigneeName) extra.codecks_assignee = card.assigneeName;

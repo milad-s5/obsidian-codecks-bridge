@@ -1,13 +1,13 @@
 import { CodecksCard, CodecksDeck, CodecksProject } from "../types";
 
 /**
- * پاسخِ Codecks نرمال‌شده‌ست: هر رابطه فقط یک id برمی‌گردونه و خودِ موجودیت زیر
- * کلیدِ نوعش می‌شینه. مثلاً card.assignee یک id کاربره و اسمش توی user[id].name.
+ * Codecks responses are normalised: a relation returns only an id, and the entity
+ * sits under its own type key. card.assignee is a user id, named in user[id].name.
  *
- * دو تله‌ای که probe لو داد و اینجا لحاظ شدن:
- *  - کلیدِ کارت cardId است نه id، ولی دک و پروژه و کاربر id دارن
- *  - projectId رو می‌خوای، project_id تحویل می‌گیری (برخلاف accountId و cardId
- *    که camelCase برمی‌گردن). هر دو شکل خونده می‌شه.
+ * Two traps the probe exposed, both handled here:
+ *  - a card is keyed by cardId, not id, while decks, projects and users use id
+ *  - ask for projectId and project_id comes back (unlike accountId and cardId,
+ *    which stay camelCase). Both spellings are read.
  */
 
 type Bag = Record<string, unknown>;
@@ -21,7 +21,7 @@ function table(res: unknown, name: string): Bag[] {
   );
 }
 
-/** اولین کلیدی که واقعاً مقدار داره — برای فیلدهایی که اسمشون یکدست نیست */
+/** First key that actually holds a value — for fields whose naming is inconsistent */
 function pick(row: Bag, ...keys: string[]): unknown {
   for (const k of keys) {
     const v = row[k];
@@ -64,7 +64,7 @@ export interface ParseCardsContext {
 export function parseCards(res: unknown, ctx: ParseCardsContext): CodecksCard[] {
   const deckById = new Map(ctx.decks.map((d) => [d.id, d]));
   const projectById = new Map(ctx.projects.map((p) => [p.id, p]));
-  // کاربرها توی همین پاسخ میان، چون assignee به‌شکل رابطه خواسته شده
+  // Users arrive in this same response, because assignee was asked for as a relation
   const userById = new Map(
     table(res, "user").map((u) => [str(pick(u, "id")), str(pick(u, "name"))])
   );
@@ -97,8 +97,8 @@ export function parseCards(res: unknown, ctx: ParseCardsContext): CodecksCard[] 
 }
 
 /**
- * عنوانِ کارت‌ها گاهی خالیه و متنِ واقعی توی content است (خط اول = عنوان).
- * برای تسکِ بی‌نام، چیزی بهتر از رشته‌ی خالی لازم داریم.
+ * Card titles are sometimes empty, with the real text in content whose first line
+ * is the title. An unnamed task needs better than an empty string.
  */
 export function displayTitle(card: CodecksCard): string {
   const fromTitle = card.title.trim();

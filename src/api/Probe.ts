@@ -2,30 +2,30 @@ import { App, normalizePath } from "obsidian";
 import { CodecksClient, CodecksError } from "./CodecksClient";
 
 /**
- * فاز کشف — دور چهارم.
+ * Discovery phase — round four.
  *
- * دورهای قبل شکلِ کارت و دک و پروژه را روشن کردند. دو چیز باقی مانده که
- * حدس‌زدنشان تا حالا همیشه غلط از آب درآمده:
+ * Earlier rounds settled the shape of cards, decks and projects. Two things are
+ * left, and guessing at them has been wrong every single time:
  *
- *  ۱. «اسپیس» — دک زیر اسپیس است؟ اسم فیلد و رابطه‌اش چیست؟
- *  ۲. کارتِ حذف‌شده با چه چیزی مشخص می‌شود؟ deletedAt؟ archived؟ visibility؟
+ *  1. Spaces — do decks sit under one? What is the field or relation called?
+ *  2. What marks a card as deleted? deletedAt? archived? visibility?
  *
- * برای هر فیلدِ مشکوک، مقادیرِ متمایزی که واقعاً برگشته گزارش می‌شود — چون
- * دانستنِ اینکه فیلد وجود دارد کافی نیست، باید بدانیم چه مقداری می‌گیرد.
+ * For each suspect field the distinct values actually returned are reported —
+ * knowing a field exists is not the same as knowing what it holds.
  */
 interface ProbeStep {
   label: string;
   query: unknown;
-  /** فیلدهایی که مقادیر متمایزشان را می‌خواهیم بشماریم */
+  /** Fields whose distinct values we want counted */
   collect?: string[];
 }
 
-/** فیلدهایی که ممکن است آدرسِ کارت از رویشان ساخته شود */
+/** Fields a card URL might be built from */
 const URL_FIELD_CANDIDATES = ["slug", "shortId", "hashId", "cardHash", "seq", "url", "link", "key"];
 
 const STEPS: ProbeStep[] = (() => {
   const steps: ProbeStep[] = [
-    // ── اسپیس: هست، ولی نامش از کجا می‌آید؟ ───────────────────────────
+    // ── Spaces: they exist, but where does a name come from? ──────────
     {
       label: "deck.spaceId — how many distinct spaces are there?",
       query: { _root: [{ account: [{ decks: ["title", "spaceId"] }] }] },
@@ -46,7 +46,7 @@ const STEPS: ProbeStep[] = (() => {
     },
   ];
 
-  // ── آدرسِ کارت: هر نامزد جدا، تا هرکدام که هست خودش را نشان دهد ──────
+  // ── Card URL: one candidate per step, so whichever exists reveals itself ─
   for (const field of URL_FIELD_CANDIDATES) {
     steps.push({
       label: `card.${field}`,
@@ -137,7 +137,7 @@ export class Probe {
   }
 }
 
-/** مقادیر متمایزِ یک فیلد در کل پاسخ، با تعداد تکرار */
+/** Distinct values of a field across the whole response, with counts */
 function distinct(node: unknown, field: string, acc = new Map<string, number>(), depth = 0): Map<string, number> {
   if (depth > 8 || node === null || typeof node !== "object") return acc;
   if (Array.isArray(node)) {

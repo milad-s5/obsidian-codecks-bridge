@@ -10,7 +10,7 @@ import { STYLES } from "./styles";
 
 const PM_PLUGIN_ID = "project-manager-with-time-tracking";
 
-/** حداقل نسخه‌ی APIای که این پلاگین باهاش کار می‌کنه */
+/** Lowest Project Manager API version this plugin can work against */
 const REQUIRED_PM_API = 1;
 
 export default class CodecksBridgePlugin extends Plugin {
@@ -56,10 +56,10 @@ export default class CodecksBridgePlugin extends Plugin {
     const stored = ((await this.loadData()) ?? {}) as Partial<CodecksBridgeSettings>;
     this.settings = Object.assign({}, DEFAULT_SETTINGS, stored);
 
-    // statusMap باید کلیدبه‌کلید ادغام بشه، نه یک‌جا جایگزین. اولین نسخه با
-    // حدسِ غلط (unassigned/assigned) ذخیره شده بود؛ با جایگزینیِ کامل، مقدارِ
-    // واقعی یعنی not_started هیچ‌وقت به تنظیماتِ موجود اضافه نمی‌شد و بی‌صدا
-    // به defaultStatus می‌افتاد.
+    // statusMap has to merge key by key rather than be replaced wholesale. The
+    // first build stored a guessed map (unassigned/assigned); replacing it
+    // outright meant not_started — the value the account actually returns —
+    // never reached an existing install and quietly fell through to defaultStatus.
     this.settings.statusMap = { ...DEFAULT_SETTINGS.statusMap, ...(stored.statusMap ?? {}) };
   }
 
@@ -86,7 +86,7 @@ export default class CodecksBridgePlugin extends Plugin {
     this.app.workspace.revealLeaf(leaf);
   }
 
-  /** APIِ Project Manager — اگه نباشه یا قدیمی‌تر از چیزی که لازمه باشه، null */
+  /** Project Manager's API, or null if it is missing or older than we need */
   pmApi(): PmApi | null {
     const api = (this.app as any).plugins?.plugins?.[PM_PLUGIN_ID]?.api as PmApi | undefined;
     if (!api || typeof api.version !== "number" || api.version < REQUIRED_PM_API) return null;

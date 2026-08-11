@@ -9,11 +9,11 @@ import { Importer } from "../import/Importer";
 export const CODECKS_VIEW_TYPE = "codecks-bridge-view";
 
 /**
- * کارتی که دیگر کاری روش نیست: یا وضعیتش تمام‌شده است، یا از تخته برداشته شده.
+ * A card with no work left: either its status is finished, or it is off the board.
  *
- * probe نشان داد حذف و آرشیو در فیلد visibility می‌نشینند (default / archived /
- * deleted) و نه در deletedAt یا isArchived — آن‌ها اصلاً وجود ندارند و ۵۰۰
- * می‌دهند. روی این حساب ۷۶ کارت از ۲۰۸ تا archived یا deleted بودند.
+ * The probe showed deletion and archiving live in visibility (default / archived /
+ * deleted) rather than deletedAt or isArchived — those do not exist at all and 500
+ * on sight. On this account 76 of 208 cards were archived or deleted.
  */
 const CLOSED_STATUSES = new Set(["done", "cancelled", "canceled"]);
 
@@ -36,7 +36,7 @@ export class CodecksView extends ItemView {
   private hideClosed = true;
   private loading = false;
   private loadError = "";
-  /** گروه‌هایی که کاربر بسته‌شون کرده — پیش‌فرض همه بازن */
+  /** Groups the user has collapsed — everything starts open */
   private collapsed = new Set<string>();
 
   constructor(leaf: WorkspaceLeaf, private plugin: CodecksBridgePlugin) {
@@ -53,14 +53,14 @@ export class CodecksView extends ItemView {
     if (await this.plugin.tokens.has()) void this.fetch();
   }
 
-  // ── داده ──────────────────────────────────────────────────────────────
+  // ── Data ──────────────────────────────────────────────────────────────
 
   private async fetch(): Promise<void> {
     this.loading = true;
     this.loadError = "";
     this.render();
     try {
-      // سه کوئریِ جدا — هر سه توی probe تک‌به‌تک تأیید شدن
+      // Three separate queries — each verified individually by the probe
       const projectsRes = await this.plugin.client.query(PROJECTS_QUERY);
       const decksRes = await this.plugin.client.query(DECKS_QUERY);
       const cardsRes = await this.plugin.client.query(CARDS_QUERY);
@@ -91,7 +91,7 @@ export class CodecksView extends ItemView {
   private visibleCards(): CodecksCard[] {
     const text = this.filterText.trim().toLowerCase();
     return this.cards.filter((c) => {
-      // کارتی که به هیچ پروژه‌ای وصل نیست چیزی نیست که ساخته باشی — نشانش نده
+      // A card attached to no project is not something anyone created — hide it
       if (!c.projectId) return false;
       if (this.hideDocs && c.isDoc) return false;
       if (this.hideClosed && isClosed(c)) return false;
@@ -103,8 +103,8 @@ export class CodecksView extends ItemView {
   }
 
   /**
-   * کارت‌ها را پروژه ← دک گروه می‌کند. مرتب‌سازی بر اساس اسم تا ترتیب بین
-   * رفرش‌ها ثابت بماند.
+   * Groups cards project → deck. Sorted by name so the order holds steady between
+   * refreshes.
    */
   private grouped(cards: CodecksCard[]): { project: string; decks: { deck: string; cards: CodecksCard[] }[] }[] {
     const byProject = new Map<string, Map<string, CodecksCard[]>>();
@@ -129,7 +129,7 @@ export class CodecksView extends ItemView {
       }));
   }
 
-  // ── رندر ──────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────
 
   private render(): void {
     const root = this.containerEl.children[1] as HTMLElement;
@@ -223,7 +223,7 @@ export class CodecksView extends ItemView {
     }
     projectSelect.addEventListener("change", () => {
       this.filterProject = projectSelect.value;
-      // انتخاب باید دفعه‌ی بعد هم سر جایش باشد
+      // The choice should still be here next time
       this.plugin.settings.lastProjectId = this.filterProject;
       void this.plugin.saveSettings();
       this.render();
@@ -268,8 +268,8 @@ export class CodecksView extends ItemView {
   }
 
   /**
-   * انتخابِ workspaceِ مقصد، همین‌جا کنارِ دکمه‌ی Import — قبلاً فقط در تنظیمات
-   * بود و از توی نما معلوم نبود ایمپورت کجا می‌رود.
+   * Target workspace picker, right beside the Import button. It used to live only
+   * in settings, which left no way to tell where an import would land.
    */
   private renderWorkspacePicker(bar: HTMLElement): void {
     const workspaces = this.plugin.pmWorkspaces();
@@ -282,7 +282,7 @@ export class CodecksView extends ItemView {
     wrap.createSpan({ cls: "cdx-ws-label", text: "into" });
     const select = wrap.createEl("select", { cls: "cdx-select" });
 
-    // اگر چیزی انتخاب نشده، اولی را بگیر تا Import هیچ‌وقت بی‌مقصد نماند
+    // If nothing is chosen, take the first so Import is never without a target
     let current = this.plugin.settings.targetWorkspaceId;
     if (!workspaces.some((w) => w.id === current)) {
       current = workspaces[0].id;
@@ -298,7 +298,7 @@ export class CodecksView extends ItemView {
     select.addEventListener("change", () => {
       this.plugin.settings.targetWorkspaceId = select.value;
       void this.plugin.saveSettings();
-      // «قبلاً وارد شده» به workspace بستگی دارد و باید دوباره حساب شود
+      // "already imported" depends on the workspace, so it has to be recomputed
       this.refreshImportedMarks();
       this.render();
     });
@@ -329,8 +329,8 @@ export class CodecksView extends ItemView {
     box.addEventListener("change", () => {
       if (box.checked) this.selected.add(card.id);
       else this.selected.delete(card.id);
-      // فقط شمارنده و دکمه‌ی ایمپورت عوض می‌شن — رندرِ کاملِ لیست موقع تیک‌زدن
-      // باعث می‌شه اسکرول بپره
+      // Only the counter and import button change — re-rendering the whole list on
+      // every tick makes the scroll position jump
       this.refreshToolbarOnly();
     });
 
@@ -349,9 +349,9 @@ export class CodecksView extends ItemView {
     if (card.assigneeName) bits.push(card.assigneeName);
     meta.setText(bits.join(" · "));
 
-    // لینکِ «باز کن در Codecks» فعلاً نیست: آدرسی که از accountSeq می‌ساختم
-    // به کارت نمی‌رسید و فرمت درستش هنوز معلوم نیست. لینکِ خرابْ بدتر از
-    // نبودنِ لینک است؛ probe بعدی دنبال فیلدِ درست می‌گردد.
+    // The "open in Codecks" link is gone: the URL built from accountSeq did not
+    // reach the card, and its real format is still unknown. A broken link is worse
+    // than no link; the next probe looks for a field to build one from.
     if (card.accountSeq !== null) {
       row.createSpan({ cls: "cdx-seq", text: `#${card.accountSeq}` });
     }
@@ -372,7 +372,7 @@ export class CodecksView extends ItemView {
     }
   }
 
-  // ── ایمپورت ───────────────────────────────────────────────────────────
+  // ── Import ────────────────────────────────────────────────────────────
 
   private async runImport(): Promise<void> {
     const importer = this.plugin.importer();

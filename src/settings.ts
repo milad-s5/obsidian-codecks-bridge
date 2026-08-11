@@ -44,11 +44,11 @@ export class CodecksBridgeSettingTab extends PluginSettingTab {
   }
 
   /**
-   * توکن هیچ‌وقت به DOM برنمی‌گرده — فیلد همیشه خالی شروع می‌شه و بعد از ذخیره
-   * هم خالی می‌شه.
+   * The token never goes back into the DOM — the field starts empty and is
+   * cleared again once saved.
    *
-   * ذخیره با دکمه انجام می‌شه، نه با Enter: روی کیبورد گوشی زدنِ Enter یا اصلاً
-   * ممکن نیست یا فقط فیلد رو می‌بنده.
+   * Saving is a button rather than Enter: on a phone keyboard Enter is often
+   * not reachable at all, or merely dismisses the field.
    */
   private renderTokenSetting(containerEl: HTMLElement): void {
     const setting = new Setting(containerEl)
@@ -74,7 +74,7 @@ export class CodecksBridgeSettingTab extends PluginSettingTab {
       text.inputEl.autocapitalize = "off";
       text.inputEl.autocomplete = "off";
       text.inputEl.spellcheck = false;
-      // روی گوشی Enter معمولاً در دسترس نیست، ولی روی دسکتاپ راحته
+      // Enter is rarely available on mobile, but it is convenient on desktop
       text.inputEl.addEventListener("keydown", (e: KeyboardEvent) => {
         if (e.key !== "Enter") return;
         e.preventDefault();

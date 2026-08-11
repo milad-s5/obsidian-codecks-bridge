@@ -35,7 +35,7 @@ export class TokenStore {
       const parsed = JSON.parse(raw) as { token?: unknown };
       this.cached = typeof parsed.token === "string" && parsed.token ? parsed.token : null;
     } catch {
-      // پیکربندی خراب نباید پلاگین رو از کار بندازه — انگار توکنی نیست
+      // A corrupt file must not break the plugin — treat it as no token
       this.cached = null;
     }
     return this.cached;
@@ -67,7 +67,7 @@ export class TokenStore {
     return (await this.read()) !== null;
   }
 
-  /** فقط برای نمایش در تنظیمات — خودِ توکن هیچ‌وقت به UI برنمی‌گرده */
+  /** For display in settings only — the token itself never returns to the UI */
   async describe(): Promise<string> {
     const t = await this.read();
     if (!t) return "not set";

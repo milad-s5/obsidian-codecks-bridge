@@ -3,7 +3,7 @@ import { TokenStore } from "../auth/TokenStore";
 
 const ENDPOINT = "https://api.codecks.io/";
 
-/** خطاهای این کلاینت هیچ‌وقت توکن رو داخل پیامشون نمی‌ذارن */
+/** Errors from this client never carry the token in their message */
 export type CodecksErrorKind = "no-token" | "no-subdomain" | "auth" | "rate-limit" | "http" | "network";
 
 export class CodecksError extends Error {
@@ -14,8 +14,8 @@ export class CodecksError extends Error {
 }
 
 /**
- * سقفِ اعلام‌شده ۴۰ درخواست در ۵ ثانیه به‌ازای هر IP است. با ۳۰ کار می‌کنیم تا
- * اگر چیز دیگه‌ای از همین IP با Codecks حرف می‌زنه، ما اونو از کار نندازیم.
+ * The published ceiling is 40 requests per 5 seconds per IP. We run at 30 so that
+ * anything else talking to Codecks from the same IP is not starved by us.
  */
 export class RateLimiter {
   private stamps: number[] = [];
@@ -27,7 +27,7 @@ export class RateLimiter {
     private readonly sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
   ) {}
 
-  /** صف‌بندی سریالی — وگرنه چند فراخوانِ هم‌زمان همگی از سقف رد می‌شن */
+  /** Serialised queue — otherwise concurrent callers all clear the cap at once */
   take(): Promise<void> {
     const next = this.chain.then(() => this.reserve());
     this.chain = next.catch(() => undefined);
@@ -57,10 +57,10 @@ export class CodecksClient {
   ) {}
 
   /**
-   * یک کوئری خام می‌فرسته و بدنه‌ی پاسخ رو برمی‌گردونه.
+   * Sends a raw query and returns the response body.
    *
-   * از requestUrl اوبسیدین استفاده می‌کنه نه fetch: یک fetch از رِندرر به دامنه‌ی
-   * دیگه با CORS بلاک می‌شه.
+   * Uses Obsidian's requestUrl rather than fetch: a renderer fetch to another
+   * origin is blocked by CORS.
    */
   async query(query: unknown): Promise<unknown> {
     const subdomain = this.getSubdomain().trim();

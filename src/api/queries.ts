@@ -1,11 +1,11 @@
 /**
- * کوئری‌ها بر اساس چیزی که probe روی حساب واقعی نشون داد نوشته شدن، نه حدس.
+ * These queries follow what the probe showed against the real account, not guesswork.
  *
- * چیزهایی که یاد گرفتیم و اینجا رعایت شدن:
- *  - assigneeId فیلد معتبری نیست و ۵۰۰ می‌ده؛ assignee به‌شکل رابطه‌ی تودرتو جواب می‌ده
- *  - $limit در هیچ شکلی پذیرفته نمی‌شه (فیلتر و $order می‌شن). چون کل حساب چند صد
- *    کارته، بی‌خیالِ صفحه‌بندی می‌شیم و همه رو یک‌جا می‌گیریم
- *  - سه کوئری جدا می‌زنیم نه یکی ترکیبی: هر سه تک‌به‌تک تأیید شدن
+ * What it taught us, honoured here:
+ *  - assigneeId is not a valid field and 500s; assignee works as a nested relation
+ *  - $limit is rejected in every form (filters and $order are fine). The account
+ *    is only a few hundred cards, so we skip paging and take them all at once
+ *  - three separate queries rather than one combined: all three were verified
  */
 
 export const PROJECTS_QUERY = {
@@ -32,8 +32,8 @@ export const CARDS_QUERY = {
             "dueDate",
             "deckId",
             "isDoc",
-            // default | archived | deleted — تنها چیزی که حذف را نشان می‌دهد.
-            // deletedAt و archivedAt و isArchived هر سه ۵۰۰ می‌دهند.
+            // default | archived | deleted — the only thing that marks deletion.
+            // deletedAt, archivedAt and isArchived all 500.
             "visibility",
             { assignee: ["name"] },
           ],
@@ -43,7 +43,7 @@ export const CARDS_QUERY = {
   ],
 };
 
-/** آدرسِ کارت در وب‌اپ، از روی شماره‌ی قابل‌خواندنش */
+/** Card address in the web app, from its human-readable number */
 export function cardUrl(subdomain: string, accountSeq: number | null): string {
   if (accountSeq === null) return "";
   return `https://${subdomain}.codecks.io/card/${accountSeq}`;
