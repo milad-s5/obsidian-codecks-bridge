@@ -4,6 +4,8 @@ Browse your [Codecks](https://www.codecks.io) cards inside Obsidian and pull the
 
 Read-only towards Codecks. Nothing is created, changed or deleted over there.
 
+![Decks as tiles, with a deck opened over the grid](./images/deck-grid.png)
+
 ## What it does
 
 Decks are drawn as a grid of tiles the way Codecks draws them — each with its own colour, its name on a band, and counts along the bottom for picked, total and already-imported. Clicking a tile opens that deck's cards over the grid.
@@ -51,6 +53,27 @@ Discovered against a live account rather than assumed, and worth knowing if you 
 - No field on a card yields a shareable URL, so cards show their number instead of a link.
 
 There is a **Test connection** button in settings that runs read-only queries and writes what came back to a note, which is how all of the above was established.
+
+## Support
+
+This project is offered for free so everyone can use it without restrictions.
+If you found this tool useful, you can support its continuous development and improvement through donations.
+
+<a href="https://www.coffeete.ir/milads55">
+  <img
+    src="https://camo.githubusercontent.com/6172dcfba6291a8708f0f4162f69dbd651851f1d047ec49573514d5e59127bed/687474703a2f2f7777772e636f6666656574652e69722f696d616765732f627574746f6e732f6c656d6f6e63686966666f6e2e706e67"
+    alt="Buy Me a Coffee"
+    width="180"
+  />
+</a>
+<br><br>
+<a href="https://buymeabitcoffee.vercel.app/btc/bc1qwxju09p2wywqqq8udj2am8csvn6r4p4z6720q3">
+  <img
+    src="https://img.shields.io/badge/Buy%20Me%20a%20BitCoffee-f7931a?logo=bitcoin&style=flat&logoColor=white&color=f7931a&label=Donate"
+    alt="Buy Me a BitCoffee"
+    width="180"
+  />
+</a>
 
 ## Licence
 

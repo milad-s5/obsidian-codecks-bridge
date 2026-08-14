@@ -1,7 +1,7 @@
 {
   "id": "codecks-bridge",
   "name": "Codecks Bridge",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "minAppVersion": "1.5.0",
   "description": "Browse Codecks cards and import them into Project Manager as projects and tasks. Read-only towards Codecks.",
   "author": "Milad Samimifar",
