@@ -2,13 +2,15 @@ import { App, normalizePath } from "obsidian";
 import { CodecksClient, CodecksError } from "./CodecksClient";
 
 /**
- * Discovery phase — round four.
+ * Discovery phase — round six.
  *
- * Earlier rounds settled the shape of cards, decks and projects. Two things are
- * left, and guessing at them has been wrong every single time:
+ * Two open questions, both of which have punished guessing before:
  *
- *  1. Spaces — do decks sit under one? What is the field or relation called?
- *  2. What marks a card as deleted? deletedAt? archived? visibility?
+ *  1. The section row above the decks ("Ideas" in the app). Decks carry a
+ *     numeric spaceId with seven distinct values here, but every route to an
+ *     entity holding its *name* has 500'd so far. This tries other names.
+ *  2. Fetching one deck's card bodies on demand, so the initial load does not
+ *     drag every card's text along with it.
  *
  * For each suspect field the distinct values actually returned are reported —
  * knowing a field exists is not the same as knowing what it holds.
@@ -20,40 +22,61 @@ interface ProbeStep {
   collect?: string[];
 }
 
-/** Fields a card URL might be built from */
-const URL_FIELD_CANDIDATES = ["slug", "shortId", "hashId", "cardHash", "seq", "url", "link", "key"];
+/** Names the deck-section entity might go by — the "Ideas" row above the decks */
+const SECTION_COLLECTIONS = ["deckSpaces", "sections", "deckGroups", "groups", "spaces"];
+
+/** Relation names on a deck that might carry that section */
+const DECK_SECTION_RELATIONS = ["deckSpace", "section", "deckGroup", "group"];
 
 const STEPS: ProbeStep[] = (() => {
-  const steps: ProbeStep[] = [
-    // ── Spaces: they exist, but where does a name come from? ──────────
-    {
-      label: "deck.spaceId — how many distinct spaces are there?",
-      query: { _root: [{ account: [{ decks: ["title", "spaceId"] }] }] },
-      collect: ["spaceId"],
-    },
-    {
-      label: "space entity by id — space(1)",
-      query: { "space(1)": ["name"] },
-    },
-    {
-      label: "account.spaces with id instead of name",
-      query: { _root: [{ account: [{ spaces: ["id"] }] }] },
-    },
-    {
-      label: "deck.space_id (snake, like project_id)",
-      query: { _root: [{ account: [{ decks: ["title", "space_id"] }] }] },
-      collect: ["space_id"],
-    },
-  ];
+  const steps: ProbeStep[] = [];
 
-  // ── Card URL: one candidate per step, so whichever exists reveals itself ─
-  for (const field of URL_FIELD_CANDIDATES) {
+  // ── The section row: collections on the account ───────────────────────
+  for (const name of SECTION_COLLECTIONS) {
     steps.push({
-      label: `card.${field}`,
-      query: { _root: [{ account: [{ cards: ["title", field] }] }] },
-      collect: [field],
+      label: `account.${name}`,
+      query: { _root: [{ account: [{ [name]: ["name"] }] }] },
     });
   }
+
+  // ── The section row: relations hanging off a deck ─────────────────────
+  for (const rel of DECK_SECTION_RELATIONS) {
+    steps.push({
+      label: `deck.${rel} as a relation`,
+      query: { _root: [{ account: [{ decks: ["title", { [rel]: ["name"] }] }] }] },
+    });
+  }
+  steps.push({
+    label: "deck.spaceId + title, to pair ids with deck names by hand",
+    query: { _root: [{ account: [{ decks: ["title", "spaceId"] }] }] },
+    collect: ["spaceId"],
+  });
+
+  // ── Fetching card bodies for one deck only ────────────────────────────
+  steps.push(
+    {
+      label: 'filter cards by deckId — cards({"deckId":"<first deck>"})',
+      query: {
+        _root: [
+          {
+            account: [
+              { decks: ["title", { 'cards({"$order":"createdAt"})': ["title"] }] },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      label: 'fetch one card body by accountSeq — cards({"accountSeq":139})',
+      query: {
+        _root: [{ account: [{ 'cards({"accountSeq":139})': ["title", "content"] }] }],
+      },
+    },
+    {
+      label: "card entity by uuid — card(<uuid>)",
+      query: { "card(dd609582-ada7-11f0-840c-67f99209c5cb)": ["title", "content"] },
+    }
+  );
 
   return steps;
 })();

@@ -1,6 +1,6 @@
 import { CodecksCard, CodecksBridgeSettings } from "../types";
 import { displayTitle } from "../api/normalize";
-import { cardUrl } from "../api/queries";
+
 
 /** The slice of Project Manager's API this needs */
 export interface PmApi {
@@ -133,8 +133,9 @@ export class Importer {
     if (card.projectName) extra.codecks_project = card.projectName;
     if (card.effort !== null) extra.codecks_effort = card.effort;
     if (card.assigneeName) extra.codecks_assignee = card.assigneeName;
-    const url = cardUrl(this.settings.subdomain, card.accountSeq);
-    if (url) extra.codecks_url = url;
+    // No codecks_url. The address built from accountSeq does not resolve and the
+    // probe found no field to build a real one from, so this was writing a dead
+    // link into every imported task. codecks_seq is enough to find the card.
     return extra;
   }
 }

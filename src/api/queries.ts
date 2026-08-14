@@ -24,7 +24,8 @@ export const CARDS_QUERY = {
           cards: [
             "title",
             "status",
-            "content",
+            // content is deliberately absent: it is the bulk of the payload and
+            // most of it is never read. deckBodiesQuery pulls it a deck at a time.
             "effort",
             "priority",
             "accountSeq",
@@ -43,8 +44,15 @@ export const CARDS_QUERY = {
   ],
 };
 
-/** Card address in the web app, from its human-readable number */
-export function cardUrl(subdomain: string, accountSeq: number | null): string {
-  if (accountSeq === null) return "";
-  return `https://${subdomain}.codecks.io/card/${accountSeq}`;
+/**
+ * The card bodies for a single deck.
+ *
+ * Filters in this `field({...})` form are known to work — the probe confirmed
+ * cards({"status":"done"}) — and this leans on the same shape with deckId.
+ * If it ever stops working the sheet still lists its cards; only the body text
+ * is missing, and the view says so.
+ */
+export function deckBodiesQuery(deckId: string): unknown {
+  const filter = JSON.stringify({ deckId });
+  return { _root: [{ account: [{ [`cards(${filter})`]: ["content"] }] }] };
 }

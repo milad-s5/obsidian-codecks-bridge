@@ -96,13 +96,26 @@ export function parseCards(res: unknown, ctx: ParseCardsContext): CodecksCard[] 
   });
 }
 
+/** Card id → body text, from a bodies-only response */
+export function parseCardBodies(res: unknown): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const row of table(res, "card")) {
+    const id = str(pick(row, "cardId", "id"));
+    if (id) out.set(id, str(pick(row, "content")));
+  }
+  return out;
+}
+
 /**
  * Card titles are sometimes empty, with the real text in content whose first line
  * is the title. An unnamed task needs better than an empty string.
+ *
+ * content is no longer part of the initial load, so this falls back to the card
+ * number rather than reaching for text that is not there yet.
  */
 export function displayTitle(card: CodecksCard): string {
   const fromTitle = card.title.trim();
   if (fromTitle) return fromTitle;
-  const firstLine = card.content.split(/\r?\n/).find((l) => l.trim());
+  const firstLine = (card.content ?? "").split(/\r?\n/).find((l) => l.trim());
   return (firstLine ?? "").trim() || `Card ${card.accountSeq ?? ""}`.trim();
 }

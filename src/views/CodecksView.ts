@@ -1,8 +1,10 @@
 import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
 import type CodecksBridgePlugin from "../main";
 import { CodecksCard, CodecksDeck, CodecksProject } from "../types";
-import { CARDS_QUERY, DECKS_QUERY, PROJECTS_QUERY, cardUrl } from "../api/queries";
-import { displayTitle, parseCards, parseDecks, parseProjects } from "../api/normalize";
+import { CARDS_QUERY, DECKS_QUERY, PROJECTS_QUERY, deckBodiesQuery } from "../api/queries";
+import {
+  displayTitle, parseCardBodies, parseCards, parseDecks, parseProjects,
+} from "../api/normalize";
 import { CodecksError } from "../api/CodecksClient";
 import { Importer } from "../import/Importer";
 
@@ -82,6 +84,15 @@ export class CodecksView extends ItemView {
   private collapsed = new Set<string>();
   /** The one deck whose cards are on screen, as "project/deck" */
   private openDeck: string | null = null;
+  /** Card bodies, fetched a deck at a time rather than all at load */
+  private bodies = new Map<string, string>();
+  /** Decks whose bodies have been asked for, so one deck is fetched once */
+  private bodiesFetched = new Set<string>();
+  private bodiesLoading = false;
+  private bodiesError = "";
+  /** Card ids whose body is expanded in the sheet */
+  private expanded = new Set<string>();
+  private escapeHandler: ((e: KeyboardEvent) => void) | null = null;
 
   constructor(leaf: WorkspaceLeaf, private plugin: CodecksBridgePlugin) {
     super(leaf);
@@ -147,6 +158,34 @@ export class CodecksView extends ItemView {
   }
 
   /**
+   * Fetches the bodies for one deck's cards, the first time that deck is opened.
+   *
+   * Card text is the bulk of the payload and most of it is never read, so it is
+   * deliberately left out of the initial load and pulled a deck at a time.
+   */
+  private async loadDeckBodies(cards: CodecksCard[]): Promise<void> {
+    const deckId = cards[0]?.deckId;
+    if (!deckId || this.bodiesFetched.has(deckId)) return;
+    this.bodiesFetched.add(deckId);
+    this.bodiesLoading = true;
+    this.bodiesError = "";
+    this.render();
+
+    try {
+      const res = await this.plugin.client.query(deckBodiesQuery(deckId));
+      for (const [id, body] of parseCardBodies(res)) this.bodies.set(id, body);
+    } catch (err) {
+      // Losing this costs the body text, not the panel — say so and carry on
+      this.bodiesFetched.delete(deckId);
+      this.bodiesError =
+        err instanceof CodecksError ? err.message : "Could not load the card text.";
+    } finally {
+      this.bodiesLoading = false;
+      this.render();
+    }
+  }
+
+  /**
    * Groups cards project → deck. Sorted by name so the order holds steady between
    * refreshes.
    */
@@ -177,6 +216,11 @@ export class CodecksView extends ItemView {
 
   private render(): void {
     const root = this.containerEl.children[1] as HTMLElement;
+    // The sheet's Escape handler belongs to the DOM being thrown away
+    if (this.escapeHandler) {
+      window.removeEventListener("keydown", this.escapeHandler, true);
+      this.escapeHandler = null;
+    }
     root.empty();
     root.addClass("cdx-root");
 
@@ -239,21 +283,79 @@ export class CodecksView extends ItemView {
         this.renderDeck(grid, group.project, deck, cards);
       }
 
-      // The open deck's cards sit under the whole grid rather than inside a
-      // cell, so the grid keeps its shape and the rows get the full width.
-      const open = group.decks.find(
-        (d) => deckKey(group.project, d.deck) === this.openDeck
-      );
-      if (open) {
-        const panel = list.createDiv({ cls: "cdx-deck-panel" });
-        const head = panel.createDiv({ cls: "cdx-panel-head" });
-        head.createSpan({ cls: "cdx-panel-dot" });
-        head.createSpan({ cls: "cdx-panel-title", text: open.deck });
-        head.createSpan({ cls: "cdx-group-count", text: String(open.cards.length) });
-        panel.style.setProperty("--deck", deckColor(open.deck));
-        for (const card of open.cards) this.renderCard(panel, card);
+    }
+
+    // The open deck floats over the grid rather than sitting under it. Below
+    // the grid meant scrolling past every tile to reach the cards of the one
+    // just clicked, which got worse the more decks there were.
+    const open = this.findOpenDeck(visible);
+    if (open) this.renderDeckOverlay(root, open);
+  }
+
+  private findOpenDeck(
+    visible: CodecksCard[]
+  ): { project: string; deck: string; cards: CodecksCard[] } | null {
+    if (!this.openDeck) return null;
+    for (const group of this.grouped(visible)) {
+      for (const d of group.decks) {
+        if (deckKey(group.project, d.deck) === this.openDeck) {
+          return { project: group.project, deck: d.deck, cards: d.cards };
+        }
       }
     }
+    return null;
+  }
+
+  /** The open deck, as a sheet over the grid — closed by ×, backdrop or Escape. */
+  private renderDeckOverlay(
+    root: HTMLElement,
+    open: { project: string; deck: string; cards: CodecksCard[] }
+  ): void {
+    const close = () => {
+      this.openDeck = null;
+      this.render();
+    };
+
+    const backdrop = root.createDiv({ cls: "cdx-backdrop" });
+    backdrop.addEventListener("click", close);
+
+    const sheet = root.createDiv({ cls: "cdx-sheet" });
+    sheet.style.setProperty("--deck", deckColor(open.deck));
+
+    const head = sheet.createDiv({ cls: "cdx-sheet-head" });
+    head.createSpan({ cls: "cdx-sheet-glyph", text: deckGlyph(open.deck) });
+    const titles = head.createDiv({ cls: "cdx-sheet-titles" });
+    titles.createDiv({ cls: "cdx-sheet-title", text: open.deck });
+    titles.createDiv({ cls: "cdx-sheet-sub", text: `${open.project} · ${open.cards.length} cards` });
+
+    const selectAll = head.createEl("button", { cls: "cdx-btn", text: "Select all" });
+    selectAll.addEventListener("click", () => {
+      const all = open.cards.every((c) => this.selected.has(c.id));
+      for (const c of open.cards) {
+        if (all) this.selected.delete(c.id);
+        else this.selected.add(c.id);
+      }
+      this.render();
+    });
+
+    const closeBtn = head.createEl("button", { cls: "cdx-sheet-close", text: "×" });
+    closeBtn.setAttribute("aria-label", "Close");
+    closeBtn.addEventListener("click", close);
+
+    const body = sheet.createDiv({ cls: "cdx-sheet-body" });
+    for (const card of open.cards) this.renderCard(body, card);
+
+    // Escape closes, and the handler goes away with the next render
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      window.removeEventListener("keydown", onKey, true);
+      close();
+    };
+    window.addEventListener("keydown", onKey, true);
+    this.escapeHandler = onKey;
+
+    void this.loadDeckBodies(open.cards);
   }
 
   /** One deck, drawn the way Codecks draws them: cover, colour band, counts. */
@@ -454,12 +556,51 @@ export class CodecksView extends ItemView {
     if (card.assigneeName) bits.push(card.assigneeName);
     meta.setText(bits.join(" · "));
 
+    this.renderCardBody(main, card);
+
     // The "open in Codecks" link is gone: the URL built from accountSeq did not
     // reach the card, and its real format is still unknown. A broken link is worse
     // than no link; the next probe looks for a field to build one from.
     if (card.accountSeq !== null) {
       row.createSpan({ cls: "cdx-seq", text: `#${card.accountSeq}` });
     }
+  }
+
+  /**
+   * The card's own text, behind a toggle. The body arrives with the deck, so by
+   * the time a row is on screen the text is usually already in hand; the toggle
+   * exists because a wall of text on every row is unreadable, not because the
+   * fetch is per card.
+   */
+  private renderCardBody(main: HTMLElement, card: CodecksCard): void {
+    const body = this.bodies.get(card.id) ?? card.content ?? "";
+    const isOpen = this.expanded.has(card.id);
+
+    if (this.bodiesLoading && !body) {
+      main.createDiv({ cls: "cdx-body-note", text: "Loading text…" });
+      return;
+    }
+    if (this.bodiesError && !body) {
+      main.createDiv({ cls: "cdx-body-note is-error", text: this.bodiesError });
+      return;
+    }
+
+    // Text identical to the title is what Codecks stores for a bare card
+    const meaningful = body.trim() && body.trim() !== displayTitle(card).trim();
+    if (!meaningful) return;
+
+    const toggle = main.createEl("button", {
+      cls: "cdx-body-toggle",
+      text: isOpen ? "▾ hide text" : "▸ show text",
+    });
+    toggle.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (isOpen) this.expanded.delete(card.id);
+      else this.expanded.add(card.id);
+      this.render();
+    });
+
+    if (isOpen) main.createDiv({ cls: "cdx-body", text: body.trim() });
   }
 
   private refreshToolbarOnly(): void {

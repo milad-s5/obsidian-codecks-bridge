@@ -1,5 +1,6 @@
 export const STYLES = `
-.cdx-root { display: flex; flex-direction: column; height: 100%; padding: 0; }
+/* position: relative so the deck sheet can float over the grid inside the view */
+.cdx-root { display: flex; flex-direction: column; height: 100%; padding: 0; position: relative; }
 
 .cdx-toolbar {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -147,21 +148,66 @@ export const STYLES = `
 .cdx-deck:hover .cdx-deck-pick, .cdx-deck-pick:focus-visible { opacity: 1; }
 .cdx-deck-pick:hover { background: var(--deck); }
 
-/* ── The open deck's cards ────────────────────────────────────────────── */
-.cdx-deck-panel {
-  margin: 0 6px 14px;
-  padding: 10px 10px 6px;
-  border-radius: 10px;
+/* ── The open deck, floating over the grid ────────────────────────────── */
+.cdx-backdrop {
+  position: absolute; inset: 0; z-index: 10;
+  background: rgba(0, 0, 0, 0.45);
+}
+.cdx-sheet {
+  position: absolute; z-index: 11;
+  left: 50%; transform: translateX(-50%);
+  top: 8%; width: min(560px, calc(100% - 28px)); max-height: 80%;
+  display: flex; flex-direction: column;
+  border-radius: 12px; overflow: hidden;
+  background: var(--background-primary);
+  box-shadow: 0 0 0 2px var(--deck), 0 18px 44px rgba(0, 0, 0, 0.5);
+}
+.cdx-sheet-head {
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  padding: 11px 12px;
+  background: var(--deck);
+}
+.cdx-sheet-glyph {
+  width: 32px; height: 32px; flex-shrink: 0; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800; color: #fff;
+  background: rgba(0, 0, 0, 0.22);
+}
+.cdx-sheet-titles { flex: 1; min-width: 0; }
+.cdx-sheet-title {
+  font-size: 14px; font-weight: 800; color: #fff;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cdx-sheet-sub { font-size: 11px; color: rgba(255, 255, 255, 0.8); }
+.cdx-sheet-head .cdx-btn {
+  background: rgba(0, 0, 0, 0.25); color: #fff; border-color: rgba(255, 255, 255, 0.28);
+}
+.cdx-sheet-head .cdx-btn:hover { background: rgba(0, 0, 0, 0.4); color: #fff; }
+.cdx-sheet-close {
+  width: 26px; height: 26px; flex-shrink: 0; padding: 0; line-height: 1;
+  font-size: 17px; border-radius: 6px; cursor: pointer;
+  background: transparent; color: #fff; border: none;
+}
+.cdx-sheet-close:hover { background: rgba(0, 0, 0, 0.28); }
+.cdx-sheet-body { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 12px 14px; }
+
+/* ── Card body text ───────────────────────────────────────────────────── */
+.cdx-body-toggle {
+  margin-top: 5px; padding: 1px 6px 1px 0;
+  font-size: 10.5px; cursor: pointer;
+  background: transparent; border: none; color: var(--text-faint);
+}
+.cdx-body-toggle:hover { color: var(--text-accent); }
+.cdx-body {
+  margin-top: 5px; padding: 8px 10px; border-radius: 6px;
+  font-size: 12px; line-height: 1.55; color: var(--text-muted);
   background: var(--background-secondary);
-  border-left: 3px solid var(--deck);
+  border-left: 2px solid var(--deck, var(--background-modifier-border));
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  max-height: 260px; overflow-y: auto;
 }
-.cdx-panel-head {
-  display: flex; align-items: center; gap: 7px; margin-bottom: 8px;
-}
-.cdx-panel-dot {
-  width: 8px; height: 8px; border-radius: 50%; background: var(--deck); flex-shrink: 0;
-}
-.cdx-panel-title { font-size: 12.5px; font-weight: 700; color: var(--text-normal); }
+.cdx-body-note { margin-top: 4px; font-size: 10.5px; color: var(--text-faint); }
+.cdx-body-note.is-error { color: var(--color-red); }
 
 .cdx-group-count {
   font-size: 10px; color: var(--text-faint);
