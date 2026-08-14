@@ -53,6 +53,7 @@ export function parseDecks(res: unknown): CodecksDeck[] {
     id: str(pick(row, "id")),
     title: str(pick(row, "title")),
     projectId: str(pick(row, "project_id", "projectId")),
+    spaceId: num(pick(row, "spaceId", "space_id")),
   }));
 }
 
@@ -88,6 +89,7 @@ export function parseCards(res: unknown, ctx: ParseCardsContext): CodecksCard[] 
       visibility: str(pick(row, "visibility")) || "default",
       deckId,
       deckName: deck?.title ?? "",
+      spaceId: deck?.spaceId ?? null,
       projectId: deck?.projectId ?? "",
       projectName: project?.name ?? "",
       assigneeName: userById.get(assigneeId) ?? "",

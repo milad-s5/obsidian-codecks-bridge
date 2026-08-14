@@ -13,7 +13,7 @@ export const PROJECTS_QUERY = {
 };
 
 export const DECKS_QUERY = {
-  _root: [{ account: [{ decks: ["title", "projectId"] }] }],
+  _root: [{ account: [{ decks: ["title", "projectId", "spaceId"] }] }],
 };
 
 export const CARDS_QUERY = {

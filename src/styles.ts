@@ -59,12 +59,44 @@ export const STYLES = `
   letter-spacing: -0.01em;
 }
 
+/* ── Section row, the "Ideas" level between a project and its decks ───── */
+.cdx-section-head {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 6px 4px 18px;
+  cursor: pointer; user-select: none;
+}
+.cdx-section-head:hover .cdx-section-name { color: var(--text-accent); }
+.cdx-section-name {
+  font-size: 12px; font-weight: 600; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Reorder controls, shown on hover so they do not clutter every row */
+.cdx-move { display: flex; gap: 2px; margin-inline-start: auto; flex-shrink: 0; }
+.cdx-move-btn {
+  width: 18px; height: 18px; padding: 0; line-height: 1;
+  font-size: 10px; border-radius: 4px; cursor: pointer;
+  background: transparent; color: var(--text-faint);
+  border: 1px solid var(--background-modifier-border);
+  opacity: 0; transition: opacity 0.12s ease;
+}
+.cdx-space-head:hover .cdx-move-btn,
+.cdx-section-head:hover .cdx-move-btn,
+.cdx-move-btn:focus-visible { opacity: 1; }
+.cdx-move-btn:hover:not(:disabled) { color: var(--text-normal); background: var(--background-modifier-hover); }
+.cdx-move-btn:disabled { opacity: 0; cursor: default; }
+.cdx-space-head:hover .cdx-move-btn:disabled,
+.cdx-section-head:hover .cdx-move-btn:disabled { opacity: 0.25; }
+
+/* The reorder buttons take the auto margin, so the select button no longer can */
+.cdx-space-head .cdx-mini, .cdx-section-head .cdx-mini { margin-inline-start: 0; }
+
 /* ── Deck grid ────────────────────────────────────────────────────────── */
 .cdx-deck-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
   gap: 12px;
-  padding: 4px 6px 12px;
+  padding: 4px 6px 12px 18px;
 }
 
 .cdx-deck {

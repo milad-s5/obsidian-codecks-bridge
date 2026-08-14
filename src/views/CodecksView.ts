@@ -7,6 +7,7 @@ import {
 } from "../api/normalize";
 import { CodecksError } from "../api/CodecksClient";
 import { Importer } from "../import/Importer";
+import { applyOrder, moveWithin } from "./ordering";
 
 export const CODECKS_VIEW_TYPE = "codecks-bridge-view";
 
@@ -57,6 +58,28 @@ function deckGlyph(deck: string): string {
 
 function deckKey(project: string, deck: string): string {
   return `${project}/${deck}`;
+}
+
+function spaceKey(project: string, space: string): string {
+  return `${project}/${space}`;
+}
+
+interface DeckGroup {
+  deck: string;
+  cards: CodecksCard[];
+}
+
+interface SpaceGroup {
+  /** The raw space id, or "none" */
+  space: string;
+  /** What is shown — "Space 3", since the real name is not reachable */
+  label: string;
+  decks: DeckGroup[];
+}
+
+interface ProjectGroup {
+  project: string;
+  spaces: SpaceGroup[];
 }
 
 const CLOSED_STATUSES = new Set(["done", "cancelled", "canceled"]);
@@ -186,30 +209,89 @@ export class CodecksView extends ItemView {
   }
 
   /**
-   * Groups cards project → deck. Sorted by name so the order holds steady between
-   * refreshes.
+   * Groups cards project → space → deck, mirroring the app: a project holds
+   * sections ("Ideas" and friends) and each section holds decks.
+   *
+   * Spaces are labelled by number. Every route to an entity carrying the section
+   * name returns 500, so the id is all there is — which still beats flattening
+   * the level away.
    */
-  private grouped(cards: CodecksCard[]): { project: string; decks: { deck: string; cards: CodecksCard[] }[] }[] {
-    const byProject = new Map<string, Map<string, CodecksCard[]>>();
+  private grouped(cards: CodecksCard[]): ProjectGroup[] {
+    const byProject = new Map<string, Map<string, Map<string, CodecksCard[]>>>();
+
     for (const card of cards) {
       const project = card.projectName || "No project";
+      const space = card.spaceId === null ? "none" : String(card.spaceId);
       const deck = card.deckName || "No deck";
-      let decks = byProject.get(project);
-      if (!decks) byProject.set(project, (decks = new Map()));
+
+      let spaces = byProject.get(project);
+      if (!spaces) byProject.set(project, (spaces = new Map()));
+      let decks = spaces.get(space);
+      if (!decks) spaces.set(space, (decks = new Map()));
       const list = decks.get(deck);
       if (list) list.push(card);
       else decks.set(deck, [card]);
     }
 
     const byName = (a: string, b: string) => a.localeCompare(b);
-    return [...byProject.entries()]
-      .sort((a, b) => byName(a[0], b[0]))
-      .map(([project, decks]) => ({
+
+    return this.applyOrder(
+      [...byProject.keys()],
+      this.plugin.settings.projectOrder
+    ).map((project) => {
+      const spaces = byProject.get(project)!;
+      // Space keys stay project-qualified throughout, so two projects can each
+      // have a "Space 3" without one deciding the other's position.
+      const spaceKeys = this.applyOrder(
+        [...spaces.keys()].map((s) => spaceKey(project, s)),
+        this.plugin.settings.spaceOrder
+      ).map((k) => k.slice(project.length + 1));
+      return {
         project,
-        decks: [...decks.entries()]
-          .sort((a, b) => byName(a[0], b[0]))
-          .map(([deck, cards]) => ({ deck, cards })),
-      }));
+        spaces: spaceKeys.map((space) => ({
+          space,
+          label: space === "none" ? "Unfiled" : `Space ${space}`,
+          decks: [...spaces.get(space)!.entries()]
+            .sort((a, b) => byName(a[0], b[0]))
+            .map(([deck, cards]) => ({ deck, cards })),
+        })),
+      };
+    });
+  }
+
+  private applyOrder(keys: string[], order: string[]): string[] {
+    return applyOrder(keys, order);
+  }
+
+  /** Moves one key within a saved order and writes it back. */
+  private async move(
+    kind: "project" | "space",
+    keys: string[],
+    key: string,
+    delta: number
+  ): Promise<void> {
+    const next = moveWithin(this.applyOrder(keys, this.orderFor(kind, key)), key, delta);
+    if (!next) return;
+
+    if (kind === "project") {
+      this.plugin.settings.projectOrder = next;
+    } else {
+      // Other projects' spaces are preserved untouched: their keys are
+      // project-qualified, so two projects can each hold a "Space 3".
+      const project = key.slice(0, key.indexOf("/"));
+      const others = this.plugin.settings.spaceOrder.filter(
+        (k) => !k.startsWith(`${project}/`)
+      );
+      this.plugin.settings.spaceOrder = [...others, ...next];
+    }
+    await this.plugin.saveSettings();
+    this.render();
+  }
+
+  private orderFor(kind: "project" | "space", key: string): string[] {
+    if (kind === "project") return this.plugin.settings.projectOrder;
+    const project = key.slice(0, key.indexOf("/"));
+    return this.plugin.settings.spaceOrder.filter((k) => k.startsWith(`${project}/`));
   }
 
   // ── Render ────────────────────────────────────────────────────────────
@@ -255,34 +337,67 @@ export class CodecksView extends ItemView {
       return;
     }
 
-    for (const group of this.grouped(visible)) {
-      const total = group.decks.reduce((n, d) => n + d.cards.length, 0);
-      const isCollapsed = this.collapsed.has(group.project);
+    const groups = this.grouped(visible);
+    const projectKeys = groups.map((g) => g.project);
+
+    for (const group of groups) {
+      const allCards = group.spaces.flatMap((s) => s.decks.flatMap((d) => d.cards));
+      const projectCollapsed = this.collapsed.has(group.project);
 
       const header = list.createDiv({ cls: "cdx-space-head" });
-      header.createSpan({ cls: "cdx-caret", text: isCollapsed ? "▸" : "▾" });
+      header.createSpan({ cls: "cdx-caret", text: projectCollapsed ? "▸" : "▾" });
       header.createSpan({ cls: "cdx-space-name", text: group.project });
-      header.createSpan({ cls: "cdx-group-count", text: String(total) });
+      header.createSpan({ cls: "cdx-group-count", text: String(allCards.length) });
       header.addEventListener("click", () => {
-        if (isCollapsed) this.collapsed.delete(group.project);
+        if (projectCollapsed) this.collapsed.delete(group.project);
         else this.collapsed.add(group.project);
         this.render();
       });
 
+      this.renderMoveButtons(header, "project", projectKeys, group.project);
+
       const pick = header.createEl("button", { cls: "cdx-mini", text: "select all" });
       pick.addEventListener("click", (e) => {
         e.stopPropagation();
-        for (const d of group.decks) for (const c of d.cards) this.selected.add(c.id);
+        for (const c of allCards) this.selected.add(c.id);
         this.render();
       });
 
-      if (isCollapsed) continue;
+      if (projectCollapsed) continue;
 
-      const grid = list.createDiv({ cls: "cdx-deck-grid" });
-      for (const { deck, cards } of group.decks) {
-        this.renderDeck(grid, group.project, deck, cards);
+      const spaceKeys = group.spaces.map((s) => spaceKey(group.project, s.space));
+
+      for (const space of group.spaces) {
+        const key = spaceKey(group.project, space.space);
+        const spaceCards = space.decks.flatMap((d) => d.cards);
+        const spaceCollapsed = this.collapsed.has(key);
+
+        const sub = list.createDiv({ cls: "cdx-section-head" });
+        sub.createSpan({ cls: "cdx-caret", text: spaceCollapsed ? "▸" : "▾" });
+        sub.createSpan({ cls: "cdx-section-name", text: space.label });
+        sub.createSpan({ cls: "cdx-group-count", text: String(spaceCards.length) });
+        sub.addEventListener("click", () => {
+          if (spaceCollapsed) this.collapsed.delete(key);
+          else this.collapsed.add(key);
+          this.render();
+        });
+
+        this.renderMoveButtons(sub, "space", spaceKeys, key);
+
+        const spacePick = sub.createEl("button", { cls: "cdx-mini", text: "select" });
+        spacePick.addEventListener("click", (e) => {
+          e.stopPropagation();
+          for (const c of spaceCards) this.selected.add(c.id);
+          this.render();
+        });
+
+        if (spaceCollapsed) continue;
+
+        const grid = list.createDiv({ cls: "cdx-deck-grid" });
+        for (const { deck, cards } of space.decks) {
+          this.renderDeck(grid, group.project, deck, cards);
+        }
       }
-
     }
 
     // The open deck floats over the grid rather than sitting under it. Below
@@ -297,13 +412,42 @@ export class CodecksView extends ItemView {
   ): { project: string; deck: string; cards: CodecksCard[] } | null {
     if (!this.openDeck) return null;
     for (const group of this.grouped(visible)) {
-      for (const d of group.decks) {
-        if (deckKey(group.project, d.deck) === this.openDeck) {
-          return { project: group.project, deck: d.deck, cards: d.cards };
+      for (const space of group.spaces) {
+        for (const d of space.decks) {
+          if (deckKey(group.project, d.deck) === this.openDeck) {
+            return { project: group.project, deck: d.deck, cards: d.cards };
+          }
         }
       }
     }
     return null;
+  }
+
+  /**
+   * Up/down buttons rather than drag and drop: this panel is used on a phone as
+   * well, where a drag competes with the scroll.
+   */
+  private renderMoveButtons(
+    header: HTMLElement,
+    kind: "project" | "space",
+    keys: string[],
+    key: string
+  ): void {
+    const wrap = header.createDiv({ cls: "cdx-move" });
+    const at = keys.indexOf(key);
+
+    const mk = (label: string, delta: number, disabled: boolean) => {
+      const b = wrap.createEl("button", { cls: "cdx-move-btn", text: label });
+      b.disabled = disabled;
+      b.setAttribute("aria-label", delta < 0 ? `Move ${key} up` : `Move ${key} down`);
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        void this.move(kind, keys, key, delta);
+      });
+    };
+
+    mk("↑", -1, at <= 0);
+    mk("↓", 1, at < 0 || at >= keys.length - 1);
   }
 
   /** The open deck, as a sheet over the grid — closed by ×, backdrop or Escape. */

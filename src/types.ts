@@ -11,6 +11,14 @@ export interface CodecksBridgeSettings {
   defaultStatus: string;
   /** isDoc cards are documents rather than tasks — skipped by default */
   skipDocs: boolean;
+  /**
+   * Display order, as lists of keys. Anything absent sorts after everything
+   * listed, alphabetically, so a new project or space turns up at the end
+   * rather than shoving its way into the middle.
+   */
+  projectOrder: string[];
+  /** Space keys, each "<project>/<spaceId>" */
+  spaceOrder: string[];
 }
 
 export const DEFAULT_SETTINGS: CodecksBridgeSettings = {
@@ -28,6 +36,8 @@ export const DEFAULT_SETTINGS: CodecksBridgeSettings = {
   },
   defaultStatus: "todo",
   skipDocs: true,
+  projectOrder: [],
+  spaceOrder: [],
 };
 
 export interface CodecksCard {
@@ -46,6 +56,12 @@ export interface CodecksCard {
   visibility: string;
   deckId: string;
   deckName: string;
+  /**
+   * The section a deck sits in — "Ideas" and its siblings in the app. Only the
+   * number is reachable: every route to an entity carrying the name 500s, so
+   * the UI labels these "Space 3" and so on.
+   */
+  spaceId: number | null;
   projectId: string;
   projectName: string;
   assigneeName: string;
@@ -62,4 +78,5 @@ export interface CodecksDeck {
   id: string;
   title: string;
   projectId: string;
+  spaceId: number | null;
 }
