@@ -71,6 +71,25 @@ export const STYLES = `
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
+.cdx-rename-btn {
+  flex-shrink: 0; width: 18px; height: 18px; padding: 0; line-height: 1;
+  font-size: 10px; border-radius: 4px; cursor: pointer;
+  background: transparent; color: var(--text-faint); border: none;
+  opacity: 0; transition: opacity 0.12s ease;
+}
+.cdx-section-head:hover .cdx-rename-btn,
+.cdx-rename-btn:focus-visible { opacity: 1; }
+.cdx-rename-btn:hover { color: var(--text-accent); background: var(--background-modifier-hover); }
+
+.cdx-rename h3 { margin: 0 0 6px; font-size: 15px; }
+.cdx-rename-note { margin: 0 0 12px; font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+.cdx-rename-input {
+  width: 100%; padding: 6px 9px; font-size: 13px; border-radius: 6px;
+  background: var(--background-primary); color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+}
+.cdx-rename-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
 /* Reorder controls, shown on hover so they do not clutter every row */
 .cdx-move { display: flex; gap: 2px; margin-inline-start: auto; flex-shrink: 0; }
 .cdx-move-btn {

@@ -19,6 +19,11 @@ export interface CodecksBridgeSettings {
   projectOrder: string[];
   /** Space keys, each "<project>/<spaceId>" */
   spaceOrder: string[];
+  /**
+   * Names the user gave their spaces, keyed the same way. The API exposes no
+   * name for a section, so this is the only readable label there is.
+   */
+  spaceNames: Record<string, string>;
 }
 
 export const DEFAULT_SETTINGS: CodecksBridgeSettings = {
@@ -38,6 +43,7 @@ export const DEFAULT_SETTINGS: CodecksBridgeSettings = {
   skipDocs: true,
   projectOrder: [],
   spaceOrder: [],
+  spaceNames: {},
 };
 
 export interface CodecksCard {

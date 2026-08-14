@@ -7,7 +7,8 @@ import {
 } from "../api/normalize";
 import { CodecksError } from "../api/CodecksClient";
 import { Importer } from "../import/Importer";
-import { applyOrder, moveWithin } from "./ordering";
+import { applyOrder, moveWithin, spaceLabel } from "./ordering";
+import { RenameModal } from "./RenameModal";
 
 export const CODECKS_VIEW_TYPE = "codecks-bridge-view";
 
@@ -241,16 +242,19 @@ export class CodecksView extends ItemView {
     ).map((project) => {
       const spaces = byProject.get(project)!;
       // Space keys stay project-qualified throughout, so two projects can each
-      // have a "Space 3" without one deciding the other's position.
-      const spaceKeys = this.applyOrder(
+      // have a "Space 3" without one deciding the other's position. Unordered
+      // spaces fall back to their label, not the key, so a renamed one sorts
+      // where its name says rather than where its id happens to land.
+      const spaceKeys = applyOrder(
         [...spaces.keys()].map((s) => spaceKey(project, s)),
-        this.plugin.settings.spaceOrder
+        this.plugin.settings.spaceOrder,
+        (k) => this.spaceLabel(project, k.slice(project.length + 1))
       ).map((k) => k.slice(project.length + 1));
       return {
         project,
         spaces: spaceKeys.map((space) => ({
           space,
-          label: space === "none" ? "Unfiled" : `Space ${space}`,
+          label: this.spaceLabel(project, space),
           decks: [...spaces.get(space)!.entries()]
             .sort((a, b) => byName(a[0], b[0]))
             .map(([deck, cards]) => ({ deck, cards })),
@@ -261,6 +265,29 @@ export class CodecksView extends ItemView {
 
   private applyOrder(keys: string[], order: string[]): string[] {
     return applyOrder(keys, order);
+  }
+
+  private spaceLabel(project: string, space: string): string {
+    return spaceLabel(this.plugin.settings.spaceNames, spaceKey(project, space), space);
+  }
+
+  /** The generated label, for showing what clearing a custom name goes back to */
+  private defaultSpaceLabel(space: string): string {
+    return spaceLabel({}, "", space);
+  }
+
+  private openRename(project: string, space: string): void {
+    const key = spaceKey(project, space);
+    new RenameModal(this.app, {
+      current: this.plugin.settings.spaceNames[key] ?? "",
+      fallback: this.defaultSpaceLabel(space),
+      onSave: async (name) => {
+        if (name) this.plugin.settings.spaceNames[key] = name;
+        else delete this.plugin.settings.spaceNames[key];
+        await this.plugin.saveSettings();
+        this.render();
+      },
+    }).open();
   }
 
   /** Moves one key within a saved order and writes it back. */
@@ -380,6 +407,13 @@ export class CodecksView extends ItemView {
           if (spaceCollapsed) this.collapsed.delete(key);
           else this.collapsed.add(key);
           this.render();
+        });
+
+        const rename = sub.createEl("button", { cls: "cdx-rename-btn", text: "✎" });
+        rename.setAttribute("aria-label", `Rename ${space.label}`);
+        rename.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.openRename(group.project, space.space);
         });
 
         this.renderMoveButtons(sub, "space", spaceKeys, key);

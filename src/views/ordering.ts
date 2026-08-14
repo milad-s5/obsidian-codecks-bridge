@@ -7,13 +7,26 @@
  */
 
 /**
- * Saved order first, everything else after it alphabetically.
+ * Numeric-aware and case-insensitive, so "Space 2" comes before "Space 10" and
+ * "peach" sits next to "Peach". Plain string comparison got both wrong.
+ */
+const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
+/**
+ * Saved order first, everything else after it by label.
  *
  * A project or space that turns up later therefore lands at the end instead of
  * shoving into the middle of an arrangement someone set by hand, and an entry
  * left over in the saved order simply has no effect.
+ *
+ * @param labelOf what to sort the unordered remainder by — the key itself
+ *        unless the thing is shown under a different name
  */
-export function applyOrder(keys: string[], order: string[]): string[] {
+export function applyOrder(
+  keys: string[],
+  order: string[],
+  labelOf: (key: string) => string = (k) => k
+): string[] {
   const rank = new Map(order.map((k, i) => [k, i]));
   return [...keys].sort((a, b) => {
     const ra = rank.get(a);
@@ -21,7 +34,7 @@ export function applyOrder(keys: string[], order: string[]): string[] {
     if (ra !== undefined && rb !== undefined) return ra - rb;
     if (ra !== undefined) return -1;
     if (rb !== undefined) return 1;
-    return a.localeCompare(b);
+    return collator.compare(labelOf(a), labelOf(b));
   });
 }
 
@@ -39,4 +52,19 @@ export function moveWithin(ordered: string[], key: string, delta: number): strin
   const next = [...ordered];
   next.splice(to, 0, next.splice(from, 1)[0]);
   return next;
+}
+
+/**
+ * What a space is called: the user's own name if they set one, otherwise the
+ * id. The API has no name to offer — every route to one returns 500 — so this
+ * is the only place a readable label can come from.
+ */
+export function spaceLabel(
+  names: Record<string, string>,
+  key: string,
+  spaceId: string
+): string {
+  const custom = (names[key] ?? "").trim();
+  if (custom) return custom;
+  return spaceId === "none" ? "Unfiled" : `Space ${spaceId}`;
 }

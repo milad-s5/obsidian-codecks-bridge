@@ -3,4 +3,4 @@ export { parseProjects, parseDecks, parseCards, displayTitle } from "./api/norma
 export { Importer, mapStatus, CODECKS_ID_KEY } from "./import/Importer";
 export { DEFAULT_SETTINGS } from "./types";
 export { deckBodiesQuery } from "./api/queries";
-export { applyOrder, moveWithin } from "./views/ordering";
+export { applyOrder, moveWithin, spaceLabel } from "./views/ordering";
