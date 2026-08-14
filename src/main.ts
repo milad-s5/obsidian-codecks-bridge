@@ -6,7 +6,6 @@ import { CodecksClient, CodecksError } from "./api/CodecksClient";
 import { Probe } from "./api/Probe";
 import { CodecksView, CODECKS_VIEW_TYPE } from "./views/CodecksView";
 import { Importer, PmApi } from "./import/Importer";
-import { STYLES } from "./styles";
 
 const PM_PLUGIN_ID = "project-manager-with-time-tracking";
 
@@ -17,7 +16,6 @@ export default class CodecksBridgePlugin extends Plugin {
   settings: CodecksBridgeSettings;
   tokens: TokenStore;
   client: CodecksClient;
-  private styleEl: HTMLStyleElement | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -28,7 +26,6 @@ export default class CodecksBridgePlugin extends Plugin {
     );
     this.client = new CodecksClient(this.app, this.tokens, () => this.settings.subdomain);
 
-    this.loadStyles();
     this.registerView(CODECKS_VIEW_TYPE, (leaf: WorkspaceLeaf) => new CodecksView(leaf, this));
     this.addSettingTab(new CodecksBridgeSettingTab(this.app, this));
 
@@ -47,11 +44,6 @@ export default class CodecksBridgePlugin extends Plugin {
     });
   }
 
-  onunload(): void {
-    this.styleEl?.remove();
-    this.styleEl = null;
-  }
-
   async loadSettings(): Promise<void> {
     const stored = ((await this.loadData()) ?? {}) as Partial<CodecksBridgeSettings>;
     this.settings = Object.assign({}, DEFAULT_SETTINGS, stored);
@@ -65,14 +57,6 @@ export default class CodecksBridgePlugin extends Plugin {
 
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
-  }
-
-  private loadStyles(): void {
-    const el = document.createElement("style");
-    el.id = "codecks-bridge-styles";
-    el.textContent = STYLES;
-    document.head.appendChild(el);
-    this.styleEl = el;
   }
 
   async openView(): Promise<void> {

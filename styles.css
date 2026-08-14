@@ -1,4 +1,3 @@
-export const STYLES = `
 /* position: relative so the deck sheet can float over the grid inside the view */
 .cdx-root { display: flex; flex-direction: column; height: 100%; padding: 0; position: relative; }
 
@@ -303,4 +302,3 @@ export const STYLES = `
 .cdx-empty, .cdx-error { padding: 26px 18px; text-align: center; font-size: 13px; }
 .cdx-empty { color: var(--text-faint); }
 .cdx-error { color: var(--color-red); }
-`;

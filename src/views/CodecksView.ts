@@ -498,7 +498,7 @@ export class CodecksView extends ItemView {
     backdrop.addEventListener("click", close);
 
     const sheet = root.createDiv({ cls: "cdx-sheet" });
-    sheet.style.setProperty("--deck", deckColor(open.deck));
+    sheet.setCssProps({ "--deck": deckColor(open.deck) });
 
     const head = sheet.createDiv({ cls: "cdx-sheet-head" });
     head.createSpan({ cls: "cdx-sheet-glyph", text: deckGlyph(open.deck) });
@@ -549,7 +549,7 @@ export class CodecksView extends ItemView {
     const imported = cards.filter((c) => this.imported.has(c.id)).length;
 
     const el = grid.createDiv({ cls: `cdx-deck${isOpen ? " is-open" : ""}` });
-    el.style.setProperty("--deck", deckColor(deck));
+    el.setCssProps({ "--deck": deckColor(deck) });
     el.setAttribute("role", "button");
     el.setAttribute("tabindex", "0");
     el.setAttribute("aria-expanded", String(isOpen));

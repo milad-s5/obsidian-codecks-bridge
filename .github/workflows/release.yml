@@ -65,7 +65,7 @@ jobs:
           files: |
             main.js
             manifest.json
-          # This plugin has no styles.css — its CSS is injected from the bundle.
+            styles.css
           # Failing on a missing file is the point: a silently empty release is
           # worse than a failed build.
           fail_on_unmatched_files: true

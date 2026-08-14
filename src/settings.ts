@@ -10,7 +10,6 @@ export class CodecksBridgeSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Codecks Bridge" });
 
     new Setting(containerEl)
       .setName("Subdomain")
