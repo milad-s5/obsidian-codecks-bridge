@@ -1,5 +1,7 @@
 # Codecks Bridge
 
+*[فارسی](README.fa.md)*
+
 Browse your [Codecks](https://www.codecks.io) cards inside Obsidian and pull the ones you care about into [Project Manager with Time Tracking](https://github.com/milad-s5/obsidian-project-manager-with-time-tracking) as real projects and tasks — so they land in the kanban, the dashboard and the time tracking without being retyped.
 
 Read-only towards Codecks. Nothing is created, changed or deleted over there.
