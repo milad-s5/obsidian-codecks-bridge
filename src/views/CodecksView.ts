@@ -15,6 +15,48 @@ export const CODECKS_VIEW_TYPE = "codecks-bridge-view";
  * deleted) rather than deletedAt or isArchived — those do not exist at all and 500
  * on sight. On this account 76 of 208 cards were archived or deleted.
  */
+/**
+ * Deck colours. Codecks gives each deck its own colour and that is most of how a
+ * board is read at a glance, so the palette is fixed and the pick is a hash of
+ * the name — a deck keeps its colour between refreshes and across machines.
+ */
+const DECK_COLOURS = [
+  "#d9a441", // gold
+  "#e5733a", // orange
+  "#4aa3a3", // teal
+  "#6f7fd0", // indigo
+  "#b8628f", // plum
+  "#5f9e57", // green
+  "#c25b5b", // brick
+  "#8a7bc8", // violet
+];
+
+function hash(text: string): number {
+  let h = 0;
+  for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+function deckColor(deck: string): string {
+  return DECK_COLOURS[hash(deck) % DECK_COLOURS.length];
+}
+
+/**
+ * Stands in for the cover art Codecks decks have. Real images would mean
+ * fetching and caching binaries for a panel that is mostly scrolled past, so
+ * the first letters carry the identity instead, over the deck's own colour.
+ */
+function deckGlyph(deck: string): string {
+  const words = deck.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return "?";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+function deckKey(project: string, deck: string): string {
+  return `${project}/${deck}`;
+}
+
 const CLOSED_STATUSES = new Set(["done", "cancelled", "canceled"]);
 
 function isClosed(card: CodecksCard): boolean {
@@ -38,6 +80,8 @@ export class CodecksView extends ItemView {
   private loadError = "";
   /** Groups the user has collapsed — everything starts open */
   private collapsed = new Set<string>();
+  /** The one deck whose cards are on screen, as "project/deck" */
+  private openDeck: string | null = null;
 
   constructor(leaf: WorkspaceLeaf, private plugin: CodecksBridgePlugin) {
     super(leaf);
@@ -171,9 +215,9 @@ export class CodecksView extends ItemView {
       const total = group.decks.reduce((n, d) => n + d.cards.length, 0);
       const isCollapsed = this.collapsed.has(group.project);
 
-      const header = list.createDiv({ cls: "cdx-group-head" });
+      const header = list.createDiv({ cls: "cdx-space-head" });
       header.createSpan({ cls: "cdx-caret", text: isCollapsed ? "▸" : "▾" });
-      header.createSpan({ cls: "cdx-group-name", text: group.project });
+      header.createSpan({ cls: "cdx-space-name", text: group.project });
       header.createSpan({ cls: "cdx-group-count", text: String(total) });
       header.addEventListener("click", () => {
         if (isCollapsed) this.collapsed.delete(group.project);
@@ -181,7 +225,7 @@ export class CodecksView extends ItemView {
         this.render();
       });
 
-      const pick = header.createEl("button", { cls: "cdx-mini", text: "select" });
+      const pick = header.createEl("button", { cls: "cdx-mini", text: "select all" });
       pick.addEventListener("click", (e) => {
         e.stopPropagation();
         for (const d of group.decks) for (const c of d.cards) this.selected.add(c.id);
@@ -190,21 +234,82 @@ export class CodecksView extends ItemView {
 
       if (isCollapsed) continue;
 
+      const grid = list.createDiv({ cls: "cdx-deck-grid" });
       for (const { deck, cards } of group.decks) {
-        const deckHead = list.createDiv({ cls: "cdx-deck-head" });
-        deckHead.createSpan({ cls: "cdx-deck-name", text: deck });
-        deckHead.createSpan({ cls: "cdx-group-count", text: String(cards.length) });
+        this.renderDeck(grid, group.project, deck, cards);
+      }
 
-        const deckPick = deckHead.createEl("button", { cls: "cdx-mini", text: "select" });
-        deckPick.addEventListener("click", (e) => {
-          e.stopPropagation();
-          for (const c of cards) this.selected.add(c.id);
-          this.render();
-        });
-
-        for (const card of cards) this.renderCard(list, card);
+      // The open deck's cards sit under the whole grid rather than inside a
+      // cell, so the grid keeps its shape and the rows get the full width.
+      const open = group.decks.find(
+        (d) => deckKey(group.project, d.deck) === this.openDeck
+      );
+      if (open) {
+        const panel = list.createDiv({ cls: "cdx-deck-panel" });
+        const head = panel.createDiv({ cls: "cdx-panel-head" });
+        head.createSpan({ cls: "cdx-panel-dot" });
+        head.createSpan({ cls: "cdx-panel-title", text: open.deck });
+        head.createSpan({ cls: "cdx-group-count", text: String(open.cards.length) });
+        panel.style.setProperty("--deck", deckColor(open.deck));
+        for (const card of open.cards) this.renderCard(panel, card);
       }
     }
+  }
+
+  /** One deck, drawn the way Codecks draws them: cover, colour band, counts. */
+  private renderDeck(
+    grid: HTMLElement,
+    project: string,
+    deck: string,
+    cards: CodecksCard[]
+  ): void {
+    const key = deckKey(project, deck);
+    const isOpen = this.openDeck === key;
+    const selected = cards.filter((c) => this.selected.has(c.id)).length;
+    const imported = cards.filter((c) => this.imported.has(c.id)).length;
+
+    const el = grid.createDiv({ cls: `cdx-deck${isOpen ? " is-open" : ""}` });
+    el.style.setProperty("--deck", deckColor(deck));
+    el.setAttribute("role", "button");
+    el.setAttribute("tabindex", "0");
+    el.setAttribute("aria-expanded", String(isOpen));
+    el.setAttribute("aria-label", `${deck}, ${cards.length} cards`);
+
+    const cover = el.createDiv({ cls: "cdx-deck-cover" });
+    cover.createSpan({ cls: "cdx-deck-glyph", text: deckGlyph(deck) });
+
+    const band = el.createDiv({ cls: "cdx-deck-band" });
+    band.createSpan({ cls: "cdx-deck-title", text: deck });
+
+    // Counts read left to right the way the app does: picked, total, done.
+    const badges = el.createDiv({ cls: "cdx-deck-badges" });
+    if (selected) badges.createSpan({ cls: "cdx-badge is-sel", text: String(selected) });
+    badges.createSpan({ cls: "cdx-badge", text: String(cards.length) });
+    if (imported) badges.createSpan({ cls: "cdx-badge is-done", text: String(imported) });
+
+    const pick = el.createEl("button", { cls: "cdx-deck-pick", text: "+" });
+    pick.setAttribute("aria-label", `Select every card in ${deck}`);
+    pick.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const all = cards.every((c) => this.selected.has(c.id));
+      for (const c of cards) {
+        if (all) this.selected.delete(c.id);
+        else this.selected.add(c.id);
+      }
+      this.render();
+    });
+
+    const toggle = () => {
+      this.openDeck = isOpen ? null : key;
+      this.render();
+    };
+    el.addEventListener("click", toggle);
+    el.addEventListener("keydown", (e: KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        toggle();
+      }
+    });
   }
 
   private renderToolbar(root: HTMLElement): void {
