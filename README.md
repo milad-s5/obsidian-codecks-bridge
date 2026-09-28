@@ -6,11 +6,13 @@ Browse your [Codecks](https://www.codecks.io) cards inside Obsidian and pull the
 
 Read-only towards Codecks. Nothing is created, changed or deleted over there.
 
-![Decks as tiles, with a deck opened over the grid](./images/deck-grid.png)
+![Decks as coloured tiles, grouped by project and section, with counts for picked, total and already-imported cards](./images/deck-grid.png)
 
 ## What it does
 
 Decks are drawn as a grid of tiles the way Codecks draws them — each with its own colour, its name on a band, and counts along the bottom for picked, total and already-imported. Clicking a tile opens that deck's cards over the grid.
+
+![A deck opened over the grid: cards to pick, one card's text expanded, and two cards marked as already imported](./images/deck-open.png)
 
 Cards can be filtered by project, by text, and by whether they are documents, finished, or already imported. Pick any number and import them in one go: each card becomes a task under a project named after its deck, stamped with its Codecks id so importing the same card twice is a no-op rather than a duplicate.
 
